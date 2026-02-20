@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .._constants import Platform
-from .._types import ConnectionResponse, DeleteResponse, ProfileGroup
+from .._types import ConnectionResponse, DeleteResponse, ListResponse, ProfileGroup
 
 if TYPE_CHECKING:
     from .._client import PostProxy
@@ -13,9 +13,9 @@ class ProfileGroupsResource:
     def __init__(self, client: PostProxy) -> None:
         self._client = client
 
-    async def list(self) -> list[ProfileGroup]:
+    async def list(self) -> ListResponse[ProfileGroup]:
         data = await self._client._request("GET", "/profile_groups")
-        return [ProfileGroup.model_validate(pg) for pg in data["data"]]
+        return ListResponse[ProfileGroup].model_validate(data)
 
     async def get(self, id: str) -> ProfileGroup:
         data = await self._client._request("GET", f"/profile_groups/{id}")

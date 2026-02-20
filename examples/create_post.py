@@ -23,7 +23,7 @@ PROFILE_GROUP_ID = os.environ.get("POSTPROXY_PROFILE_GROUP_ID")
 async def simple_post():
     """Create a simple text post."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
         post = await client.posts.create(
             "Hello from PostProxy Python SDK!",
             profiles=[profiles[0].id],
@@ -34,14 +34,14 @@ async def simple_post():
 async def post_with_media():
     """Create a post with media URLs."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
         facebook_profile = next(
             (p for p in profiles if p.platform == "facebook"), None
         )
         if facebook_profile is None:
             raise ValueError("No Facebook profile found")
 
-        placements = await client.profiles.placements(id=facebook_profile.id)
+        placements = (await client.profiles.placements(id=facebook_profile.id)).data
 
         post = await client.posts.create(
             "Check this out!",
@@ -64,7 +64,7 @@ async def post_with_media():
 async def post_with_local_file():
     """Create a post with a local file upload."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
         post = await client.posts.create(
             "Posted with a local file!",
             profiles=[profiles[0].id],
@@ -77,7 +77,7 @@ async def post_with_local_file():
 async def draft_then_publish():
     """Create a draft post, then publish it."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
 
         # Create as draft
         post = await client.posts.create(
@@ -95,7 +95,7 @@ async def draft_then_publish():
 async def scheduled_post():
     """Schedule a post for the future."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
         post = await client.posts.create(
             "This post is scheduled!",
             profiles=[profiles[0].id],
@@ -107,7 +107,7 @@ async def scheduled_post():
 async def cross_platform_post():
     """Create a post with platform-specific parameters."""
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
 
         profile_ids = [p.id for p in profiles]
 

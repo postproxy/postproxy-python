@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List
 
-from .._types import Placement, Profile, SuccessResponse
+from .._types import ListResponse, Placement, Profile, SuccessResponse
 
 if TYPE_CHECKING:
     from .._client import PostProxy
@@ -14,13 +14,13 @@ class ProfilesResource:
 
     async def list(
         self, *, profile_group_id: str | None = None
-    ) -> List[Profile]:
+    ) -> ListResponse[Profile]:
         data = await self._client._request(
             "GET",
             "/profiles",
             profile_group_id=profile_group_id,
         )
-        return [Profile.model_validate(p) for p in data["data"]]
+        return ListResponse[Profile].model_validate(data)
 
     async def get(self, id: str, *, profile_group_id: str | None = None) -> Profile:
         data = await self._client._request(
@@ -32,13 +32,13 @@ class ProfilesResource:
 
     async def placements(
         self, id: str, *, profile_group_id: str | None = None
-    ) -> List[Placement]:
+    ) -> ListResponse[Placement]:
         data = await self._client._request(
             "GET",
             f"/profiles/{id}/placements",
             profile_group_id=profile_group_id,
         )
-        return [Placement.model_validate(p) for p in data["data"]]
+        return ListResponse[Placement].model_validate(data)
 
     async def delete(
         self, id: str, *, profile_group_id: str | None = None

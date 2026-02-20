@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from postproxy import Profile, Placement, SuccessResponse
+from postproxy import ListResponse, Profile, Placement, SuccessResponse
 from tests.conftest import MockTransport
 
 
@@ -20,17 +20,19 @@ PROFILE_DATA = {
 @pytest.mark.asyncio
 async def test_list_profiles(client, transport: MockTransport):
     transport.add("GET", "/api/profiles", 200, {"data": [PROFILE_DATA]})
-    profiles = await client.profiles.list()
-    assert len(profiles) == 1
-    assert isinstance(profiles[0], Profile)
-    assert profiles[0].name == "My Page"
-    assert profiles[0].platform == "facebook"
+    result = await client.profiles.list()
+    assert isinstance(result, ListResponse)
+    assert len(result.data) == 1
+    assert isinstance(result.data[0], Profile)
+    assert result.data[0].name == "My Page"
+    assert result.data[0].platform == "facebook"
 
 
 @pytest.mark.asyncio
 async def test_list_profiles_with_group(client, transport: MockTransport):
     transport.add("GET", "/api/profiles", 200, {"data": []})
-    await client.profiles.list(profile_group_id="pg-99")
+    result = await client.profiles.list(profile_group_id="pg-99")
+    assert len(result.data) == 0
     assert "profile_group_id=pg-99" in str(transport.requests[0].url)
 
 
@@ -50,10 +52,11 @@ async def test_placements(client, transport: MockTransport):
             {"id": "story", "name": "Story"},
         ]
     })
-    placements = await client.profiles.placements("prof-1")
-    assert len(placements) == 2
-    assert isinstance(placements[0], Placement)
-    assert placements[1].id == "story"
+    result = await client.profiles.placements("prof-1")
+    assert isinstance(result, ListResponse)
+    assert len(result.data) == 2
+    assert isinstance(result.data[0], Placement)
+    assert result.data[1].id == "story"
 
 
 @pytest.mark.asyncio

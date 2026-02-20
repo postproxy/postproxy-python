@@ -19,7 +19,7 @@ from postproxy import PostProxy
 async def main():
     async with PostProxy("your-api-key", profile_group_id="pg-abc") as client:
         # List profiles
-        profiles = await client.profiles.list()
+        profiles = (await client.profiles.list()).data
 
         # Create a post
         post = await client.posts.create(
@@ -139,17 +139,17 @@ print(result.deleted)  # True
 
 ```python
 # List all profiles
-profiles = await client.profiles.list()
+profiles = (await client.profiles.list()).data
 
 # List profiles in a specific group (overrides client default)
-profiles = await client.profiles.list(profile_group_id="pg-other")
+profiles = (await client.profiles.list(profile_group_id="pg-other")).data
 
 # Get a single profile
 profile = await client.profiles.get("profile-id")
 print(profile.name, profile.platform, profile.status)
 
 # Get available placements for a profile
-placements = await client.profiles.placements("profile-id")
+placements = (await client.profiles.placements("profile-id")).data
 for p in placements:
     print(p.id, p.name)
 
@@ -162,7 +162,7 @@ print(result.success)  # True
 
 ```python
 # List all groups
-groups = await client.profile_groups.list()
+groups = (await client.profile_groups.list()).data
 
 # Get a single group
 group = await client.profile_groups.get("pg-id")
@@ -208,7 +208,14 @@ except PostProxyError as e:
 
 ## Types
 
-All responses are parsed into Pydantic v2 models. Key types:
+All responses are parsed into Pydantic v2 models. All list methods return a response object with a `data` field — access items via `.data`:
+
+```python
+profiles = (await client.profiles.list()).data
+posts = await client.posts.list()  # also has .total, .page, .per_page
+```
+
+Key types:
 
 | Model | Fields |
 |---|---|
@@ -216,6 +223,7 @@ All responses are parsed into Pydantic v2 models. Key types:
 | `Profile` | id, name, status, platform, profile_group_id, expires_at, post_count |
 | `ProfileGroup` | id, name, profiles_count |
 | `PlatformResult` | platform, status, params, error, attempted_at, insights |
+| `ListResponse[T]` | data |
 | `PaginatedResponse[T]` | total, page, per_page, data |
 
 ### Platform parameter models
