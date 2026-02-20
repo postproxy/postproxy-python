@@ -12,7 +12,7 @@ PROFILE_GROUP_ID = os.environ.get("POSTPROXY_PROFILE_GROUP_ID")
 async def main():
     async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
         # List profile groups
-        groups = await client.profile_groups.list()
+        groups = (await client.profile_groups.list()).data
         print("Profile groups:")
         for g in groups:
             print(f"  {g.id}: {g.name} ({g.profiles_count} profiles)")

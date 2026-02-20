@@ -72,11 +72,14 @@ class Post(BaseModel):
     platforms: list[PlatformResult] = []
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class ListResponse(BaseModel, Generic[T]):
+    data: list[T]
+
+
+class PaginatedResponse(ListResponse[T]):
     total: int
     page: int
     per_page: int
-    data: list[T]
 
 
 class DeleteResponse(BaseModel):

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from postproxy import ProfileGroup, DeleteResponse, ConnectionResponse
+from postproxy import ListResponse, ProfileGroup, DeleteResponse, ConnectionResponse
 from tests.conftest import MockTransport
 
 
@@ -14,10 +14,11 @@ PG_DATA = {"id": "pg-1", "name": "My Group", "profiles_count": 3}
 @pytest.mark.asyncio
 async def test_list_profile_groups(client, transport: MockTransport):
     transport.add("GET", "/api/profile_groups", 200, {"data": [PG_DATA]})
-    groups = await client.profile_groups.list()
-    assert len(groups) == 1
-    assert isinstance(groups[0], ProfileGroup)
-    assert groups[0].name == "My Group"
+    result = await client.profile_groups.list()
+    assert isinstance(result, ListResponse)
+    assert len(result.data) == 1
+    assert isinstance(result.data[0], ProfileGroup)
+    assert result.data[0].name == "My Group"
 
 
 @pytest.mark.asyncio
