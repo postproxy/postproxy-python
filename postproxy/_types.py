@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel
+
+from ._constants import (
+    FacebookFormat,
+    InstagramFormat,
+    LinkedInFormat,
+    PinterestFormat,
+    Platform,
+    PlatformPostStatus,
+    PostStatus,
+    ProfileStatus,
+    ThreadsFormat,
+    TikTokFormat,
+    TikTokPrivacy,
+    TwitterFormat,
+    YouTubeFormat,
+    YouTubePrivacy,
+)
+
+T = TypeVar("T")
+
+
+# --- Response models ---
+
+
+class Profile(BaseModel):
+    id: str
+    name: str
+    status: ProfileStatus
+    platform: Platform
+    profile_group_id: str
+    expires_at: datetime | None = None
+    post_count: int
+
+
+class Placement(BaseModel):
+    id: str
+    name: str
+
+
+class ProfileGroup(BaseModel):
+    id: str
+    name: str
+    profiles_count: int
+
+
+class Insights(BaseModel):
+    impressions: int | None = None
+    on: datetime | None = None
+
+
+class PlatformResult(BaseModel):
+    platform: Platform
+    status: PlatformPostStatus
+    params: dict | None = None
+    error: str | None = None
+    attempted_at: datetime | None = None
+    insights: Insights | None = None
+
+
+class Post(BaseModel):
+    id: str
+    body: str
+    status: PostStatus
+    scheduled_at: datetime | None = None
+    created_at: datetime
+    platforms: list[PlatformResult] = []
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    total: int
+    page: int
+    per_page: int
+    data: list[T]
+
+
+class DeleteResponse(BaseModel):
+    deleted: bool
+
+
+class SuccessResponse(BaseModel):
+    success: bool
+
+
+class ConnectionResponse(BaseModel):
+    url: str
+    success: bool
+
+
+# --- Platform parameter models ---
+
+
+class FacebookParams(BaseModel):
+    format: FacebookFormat | None = None
+    first_comment: str | None = None
+    page_id: str | None = None
+
+
+class InstagramParams(BaseModel):
+    format: InstagramFormat | None = None
+    first_comment: str | None = None
+    collaborators: list[str] | None = None
+    cover_url: str | None = None
+    audio_name: str | None = None
+    trial_strategy: bool | None = None
+    thumb_offset: int | None = None
+
+
+class TikTokParams(BaseModel):
+    format: TikTokFormat | None = None
+    privacy_status: TikTokPrivacy | None = None
+    photo_cover_index: int | None = None
+    auto_add_music: bool | None = None
+    made_with_ai: bool | None = None
+    disable_comment: bool | None = None
+    disable_duet: bool | None = None
+    disable_stitch: bool | None = None
+    brand_content_toggle: bool | None = None
+    brand_organic_toggle: bool | None = None
+
+
+class LinkedInParams(BaseModel):
+    format: LinkedInFormat | None = None
+    organization_id: str | None = None
+
+
+class YouTubeParams(BaseModel):
+    format: YouTubeFormat | None = None
+    title: str | None = None
+    privacy_status: YouTubePrivacy | None = None
+    cover_url: str | None = None
+
+
+class PinterestParams(BaseModel):
+    format: PinterestFormat | None = None
+    title: str | None = None
+    board_id: str | None = None
+    destination_link: str | None = None
+    cover_url: str | None = None
+    thumb_offset: int | None = None
+
+
+class ThreadsParams(BaseModel):
+    format: ThreadsFormat | None = None
+
+
+class TwitterParams(BaseModel):
+    format: TwitterFormat | None = None
+
+
+class PlatformParams(BaseModel):
+    facebook: FacebookParams | None = None
+    instagram: InstagramParams | None = None
+    tiktok: TikTokParams | None = None
+    linkedin: LinkedInParams | None = None
+    youtube: YouTubeParams | None = None
+    pinterest: PinterestParams | None = None
+    threads: ThreadsParams | None = None
+    twitter: TwitterParams | None = None
