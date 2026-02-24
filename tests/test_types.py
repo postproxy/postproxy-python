@@ -103,3 +103,34 @@ def test_platform_params_exclude_none():
     d = params.model_dump(exclude_none=True)
     assert "instagram" not in d
     assert d == {"facebook": {"format": "post"}}
+
+
+def test_stats_response_model():
+    from postproxy import StatsResponse
+    resp = StatsResponse.model_validate({
+        "data": {
+            "post1": {
+                "platforms": [
+                    {
+                        "profile_id": "prof1",
+                        "platform": "instagram",
+                        "records": [
+                            {
+                                "stats": {"impressions": 100, "likes": 10},
+                                "recorded_at": "2026-02-20T12:00:00Z",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    })
+    assert "post1" in resp.data
+    assert resp.data["post1"].platforms[0].platform == "instagram"
+    assert resp.data["post1"].platforms[0].records[0].stats["impressions"] == 100
+
+
+def test_stats_response_empty():
+    from postproxy import StatsResponse
+    resp = StatsResponse.model_validate({"data": {}})
+    assert resp.data == {}
