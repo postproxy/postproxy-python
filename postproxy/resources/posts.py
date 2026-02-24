@@ -10,6 +10,7 @@ from .._types import (
     PaginatedResponse,
     PlatformParams,
     Post,
+    StatsResponse,
 )
 from .._constants import Platform, PostStatus
 
@@ -150,6 +151,39 @@ class PostsResource:
             profile_group_id=profile_group_id,
         )
         return Post.model_validate(data)
+
+    async def stats(
+        self,
+        post_ids: List[str],
+        *,
+        profiles: List[str] | None = None,
+        from_date: datetime | str | None = None,
+        to_date: datetime | str | None = None,
+    ) -> StatsResponse:
+        params: dict[str, Any] = {
+            "post_ids": ",".join(post_ids),
+        }
+        if profiles is not None:
+            params["profiles"] = ",".join(profiles)
+        if from_date is not None:
+            params["from"] = (
+                from_date.isoformat()
+                if isinstance(from_date, datetime)
+                else from_date
+            )
+        if to_date is not None:
+            params["to"] = (
+                to_date.isoformat()
+                if isinstance(to_date, datetime)
+                else to_date
+            )
+
+        data = await self._client._request(
+            "GET",
+            "/posts/stats",
+            params=params,
+        )
+        return StatsResponse.model_validate(data)
 
     async def delete(
         self, id: str, *, profile_group_id: str | None = None

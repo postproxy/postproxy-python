@@ -95,6 +95,28 @@ class ConnectionResponse(BaseModel):
     success: bool
 
 
+# --- Stats models ---
+
+
+class StatsRecord(BaseModel):
+    stats: dict[str, int | float]
+    recorded_at: datetime
+
+
+class PlatformStats(BaseModel):
+    profile_id: str
+    platform: Platform
+    records: list[StatsRecord] = []
+
+
+class PostStats(BaseModel):
+    platforms: list[PlatformStats] = []
+
+
+class StatsResponse(BaseModel):
+    data: dict[str, PostStats]
+
+
 # --- Platform parameter models ---
 
 

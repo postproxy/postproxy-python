@@ -133,6 +133,22 @@ post = await client.posts.publish_draft("post-id")
 # Delete a post
 result = await client.posts.delete("post-id")
 print(result.deleted)  # True
+
+# Get post stats
+result = await client.posts.stats(["post-id-1", "post-id-2"])
+for post_id, post_stats in result.data.items():
+    for platform in post_stats.platforms:
+        for record in platform.records:
+            print(record.recorded_at, record.stats)
+
+# Filter stats by platform and date range
+from datetime import datetime
+result = await client.posts.stats(
+    ["post-id"],
+    profiles=["instagram", "twitter"],
+    from_date="2026-02-01T00:00:00Z",
+    to_date="2026-02-24T00:00:00Z",
+)
 ```
 
 ### Profiles
@@ -223,6 +239,10 @@ Key types:
 | `Profile` | id, name, status, platform, profile_group_id, expires_at, post_count |
 | `ProfileGroup` | id, name, profiles_count |
 | `PlatformResult` | platform, status, params, error, attempted_at, insights |
+| `StatsResponse` | data (dict keyed by post id) |
+| `PostStats` | platforms |
+| `PlatformStats` | profile_id, platform, records |
+| `StatsRecord` | stats (dict), recorded_at |
 | `ListResponse[T]` | data |
 | `PaginatedResponse[T]` | total, page, per_page, data |
 

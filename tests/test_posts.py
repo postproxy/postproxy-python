@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from postproxy import Post, PaginatedResponse, DeleteResponse, PlatformParams, FacebookParams
+from postproxy import Post, PaginatedResponse, DeleteResponse, PlatformParams, FacebookParams, StatsResponse
 from tests.conftest import MockTransport
 
 
@@ -105,6 +105,99 @@ async def test_publish_draft(client, transport: MockTransport):
     transport.add("POST", "/api/posts/abc123/publish", 200, published)
     post = await client.posts.publish_draft("abc123")
     assert post.status == "processing"
+
+
+STATS_RESPONSE = {
+    "data": {
+        "abc123": {
+            "platforms": [
+                {
+                    "profile_id": "prof_abc",
+                    "platform": "instagram",
+                    "records": [
+                        {
+                            "stats": {"impressions": 1200, "likes": 85, "comments": 12, "saved": 8},
+                            "recorded_at": "2026-02-20T12:00:00Z",
+                        },
+                        {
+                            "stats": {"impressions": 1523, "likes": 102, "comments": 15, "saved": 11},
+                            "recorded_at": "2026-02-21T04:00:00Z",
+                        },
+                    ],
+                }
+            ]
+        },
+        "def456": {
+            "platforms": [
+                {
+                    "profile_id": "prof_def",
+                    "platform": "twitter",
+                    "records": [
+                        {
+                            "stats": {"impressions": 430, "likes": 22, "retweets": 5},
+                            "recorded_at": "2026-02-20T12:00:00Z",
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+}
+
+
+@pytest.mark.asyncio
+async def test_stats(client, transport: MockTransport):
+    transport.add("GET", "/api/posts/stats", 200, STATS_RESPONSE)
+    result = await client.posts.stats(["abc123", "def456"])
+    assert isinstance(result, StatsResponse)
+    assert "abc123" in result.data
+    assert "def456" in result.data
+
+    ig = result.data["abc123"].platforms[0]
+    assert ig.profile_id == "prof_abc"
+    assert ig.platform == "instagram"
+    assert len(ig.records) == 2
+    assert ig.records[0].stats["impressions"] == 1200
+    assert ig.records[1].stats["likes"] == 102
+
+    tw = result.data["def456"].platforms[0]
+    assert tw.platform == "twitter"
+    assert tw.records[0].stats["retweets"] == 5
+
+    req = transport.requests[0]
+    assert "post_ids=abc123%2Cdef456" in str(req.url) or "post_ids=abc123,def456" in str(req.url)
+
+
+@pytest.mark.asyncio
+async def test_stats_with_filters(client, transport: MockTransport):
+    transport.add("GET", "/api/posts/stats", 200, {"data": {}})
+    await client.posts.stats(
+        ["abc123"],
+        profiles=["instagram", "prof_abc"],
+        from_date="2026-02-01T00:00:00Z",
+        to_date="2026-02-24T00:00:00Z",
+    )
+    req = transport.requests[0]
+    url = str(req.url)
+    assert "post_ids=abc123" in url
+    assert "profiles=instagram%2Cprof_abc" in url or "profiles=instagram,prof_abc" in url
+    assert "from=2026-02-01" in url
+    assert "to=2026-02-24" in url
+
+
+@pytest.mark.asyncio
+async def test_stats_with_datetime_objects(client, transport: MockTransport):
+    from datetime import datetime, timezone
+    transport.add("GET", "/api/posts/stats", 200, {"data": {}})
+    await client.posts.stats(
+        ["abc123"],
+        from_date=datetime(2026, 2, 1, tzinfo=timezone.utc),
+        to_date=datetime(2026, 2, 24, tzinfo=timezone.utc),
+    )
+    req = transport.requests[0]
+    url = str(req.url)
+    assert "from=2026-02-01" in url
+    assert "to=2026-02-24" in url
 
 
 @pytest.mark.asyncio
