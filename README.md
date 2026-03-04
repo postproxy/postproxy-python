@@ -130,6 +130,20 @@ post = await client.posts.create(
 # Publish a draft
 post = await client.posts.publish_draft("post-id")
 
+# Create a thread post
+from postproxy import ThreadChildInput
+
+post = await client.posts.create(
+    "Thread starts here",
+    profiles=["profile-id"],
+    thread=[
+        ThreadChildInput(body="Second post in the thread"),
+        ThreadChildInput(body="Third with media", media=["https://example.com/img.jpg"]),
+    ],
+)
+for child in post.thread:
+    print(child.id, child.body)
+
 # Delete a post
 result = await client.posts.delete("post-id")
 print(result.deleted)  # True
@@ -172,6 +186,54 @@ for p in placements:
 # Delete a profile
 result = await client.profiles.delete("profile-id")
 print(result.success)  # True
+```
+
+### Webhooks
+
+```python
+# List webhooks
+webhooks = (await client.webhooks.list()).data
+
+# Get a webhook
+webhook = await client.webhooks.get("wh-id")
+print(webhook.url, webhook.events, webhook.enabled)
+
+# Create a webhook
+webhook = await client.webhooks.create(
+    "https://example.com/webhook",
+    events=["post.published", "post.failed"],
+    description="My webhook",
+)
+print(webhook.id, webhook.secret)
+
+# Update a webhook
+webhook = await client.webhooks.update(
+    "wh-id",
+    events=["post.published"],
+    enabled=False,
+)
+
+# Delete a webhook
+result = await client.webhooks.delete("wh-id")
+
+# List deliveries
+deliveries = await client.webhooks.deliveries("wh-id", page=0, per_page=10)
+for d in deliveries.data:
+    print(d.event_type, d.response_status, d.success)
+```
+
+#### Signature verification
+
+Verify incoming webhook signatures using HMAC-SHA256:
+
+```python
+from postproxy import verify_signature
+
+is_valid = verify_signature(
+    payload=request.body,                  # raw request body string
+    signature_header=request.headers["X-PostProxy-Signature"],  # "t=...,v1=..."
+    secret="whsec_...",                    # webhook secret from create response
+)
 ```
 
 ### Profile Groups
@@ -235,9 +297,14 @@ Key types:
 
 | Model | Fields |
 |---|---|
-| `Post` | id, body, status, scheduled_at, created_at, platforms |
+| `Post` | id, body, status, scheduled_at, created_at, media, thread, platforms |
 | `Profile` | id, name, status, platform, profile_group_id, expires_at, post_count |
 | `ProfileGroup` | id, name, profiles_count |
+| `Media` | id, type, url, status |
+| `ThreadChild` | id, body, media |
+| `ThreadChildInput` | body, media |
+| `Webhook` | id, url, events, secret, enabled, description, created_at |
+| `WebhookDelivery` | id, event_id, event_type, response_status, attempt_number, success, attempted_at, created_at |
 | `PlatformResult` | platform, status, params, error, attempted_at, insights |
 | `StatsResponse` | data (dict keyed by post id) |
 | `PostStats` | platforms |

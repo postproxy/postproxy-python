@@ -15,7 +15,9 @@ Platform = Literal[
 
 ProfileStatus = Literal["active", "expired", "inactive"]
 
-PostStatus = Literal["pending", "draft", "processing", "processed", "scheduled"]
+PostStatus = Literal["pending", "draft", "processing", "processed", "scheduled", "media_processing_failed"]
+
+MediaStatus = Literal["pending", "processed", "failed"]
 
 PlatformPostStatus = Literal["pending", "processing", "published", "failed", "deleted"]
 
