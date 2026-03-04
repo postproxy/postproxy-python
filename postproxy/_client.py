@@ -33,10 +33,12 @@ class PostProxy:
         from .resources.posts import PostsResource
         from .resources.profiles import ProfilesResource
         from .resources.profile_groups import ProfileGroupsResource
+        from .resources.webhooks import WebhooksResource
 
         self.posts = PostsResource(self)
         self.profiles = ProfilesResource(self)
         self.profile_groups = ProfileGroupsResource(self)
+        self.webhooks = WebhooksResource(self)
 
     async def _request(
         self,

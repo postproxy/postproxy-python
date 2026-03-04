@@ -11,6 +11,7 @@ from .._types import (
     PlatformParams,
     Post,
     StatsResponse,
+    ThreadChildInput,
 )
 from .._constants import Platform, PostStatus
 
@@ -72,6 +73,7 @@ class PostsResource:
         media: List[str] | None = None,
         media_files: List[str | Path] | None = None,
         platforms: PlatformParams | None = None,
+        thread: List[ThreadChildInput] | None = None,
         scheduled_at: datetime | str | None = None,
         draft: bool | None = None,
         profile_group_id: str | None = None,
@@ -84,8 +86,13 @@ class PostsResource:
                 else scheduled_at
             )
 
+        # Check if any thread children have local media files
+        has_thread_files = thread is not None and any(
+            t.media_files for t in thread
+        )
+
         # When media_files are provided, use multipart form data
-        if media_files is not None:
+        if media_files is not None or has_thread_files:
             form_data: dict[str, Any] = {"post[body]": body}
             if scheduled_at_str is not None:
                 form_data["post[scheduled_at]"] = scheduled_at_str
@@ -104,10 +111,23 @@ class PostsResource:
                         files.append(
                             (f"platforms[{platform}][{key}]", (None, str(value), "text/plain"))
                         )
-            for file_path in media_files:
-                path = Path(file_path)
-                content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-                files.append(("media[]", (path.name, open(path, "rb"), content_type)))
+            if media_files is not None:
+                for file_path in media_files:
+                    path = Path(file_path)
+                    content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+                    files.append(("media[]", (path.name, open(path, "rb"), content_type)))
+
+            if thread is not None:
+                for i, t in enumerate(thread):
+                    files.append((f"thread[{i}][body]", (None, t.body, "text/plain")))
+                    if t.media is not None:
+                        for url in t.media:
+                            files.append((f"thread[{i}][media][]", (None, url, "text/plain")))
+                    if t.media_files is not None:
+                        for file_path in t.media_files:
+                            path = Path(file_path)
+                            content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+                            files.append((f"thread[{i}][media][]", (path.name, open(path, "rb"), content_type)))
 
             data = await self._client._request(
                 "POST",
@@ -133,6 +153,10 @@ class PostsResource:
                 json_body["platforms"] = platforms.model_dump(exclude_none=True)
             if media is not None:
                 json_body["media"] = media
+            if thread is not None:
+                json_body["thread"] = [
+                    t.model_dump(exclude_none=True, exclude={"media_files"}) for t in thread
+                ]
 
             data = await self._client._request(
                 "POST",

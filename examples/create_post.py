@@ -13,6 +13,7 @@ from postproxy import (
     PinterestParams,
     LinkedInParams,
     ThreadsParams,
+    ThreadChildInput,
     TwitterParams,
 )
 
@@ -156,6 +157,30 @@ async def cross_platform_post():
         print(f"Created cross-platform post {post.id}")
         for p in post.platforms:
             print(f"  {p.platform}: {p.status}")
+
+
+async def thread_post():
+    """Create a thread post with multiple child posts."""
+    async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
+        profiles = (await client.profiles.list()).data
+        twitter_profile = next(
+            (p for p in profiles if p.platform == "twitter"), None
+        )
+        if twitter_profile is None:
+            raise ValueError("No Twitter profile found")
+
+        post = await client.posts.create(
+            "Here's a thread about PostProxy 🧵",
+            profiles=[twitter_profile.id],
+            thread=[
+                ThreadChildInput(body="First, connect your social accounts."),
+                ThreadChildInput(body="Then, create posts with media!", media=["https://example.com/demo.jpg"]),
+                ThreadChildInput(body="Finally, schedule or publish instantly."),
+            ],
+        )
+        print(f"Created thread {post.id} with {len(post.thread)} children")
+        for child in post.thread:
+            print(f"  - {child.id}: {child.body}")
 
 
 if __name__ == "__main__":

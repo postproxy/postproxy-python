@@ -9,6 +9,7 @@ from ._constants import (
     FacebookFormat,
     InstagramFormat,
     LinkedInFormat,
+    MediaStatus,
     PinterestFormat,
     Platform,
     PlatformPostStatus,
@@ -63,13 +64,52 @@ class PlatformResult(BaseModel):
     insights: Insights | None = None
 
 
+class Media(BaseModel):
+    id: str
+    status: MediaStatus
+    error_message: str | None = None
+    content_type: str
+    source_url: str | None = None
+    url: str | None = None
+
+
+class ThreadChild(BaseModel):
+    id: str
+    body: str
+    media: list[Media] = []
+
+
 class Post(BaseModel):
     id: str
     body: str
     status: PostStatus
     scheduled_at: datetime | None = None
     created_at: datetime
+    media: list[Media] = []
     platforms: list[PlatformResult] = []
+    thread: list[ThreadChild] = []
+
+
+class Webhook(BaseModel):
+    id: str
+    url: str
+    events: list[str]
+    enabled: bool
+    description: str | None = None
+    secret: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WebhookDelivery(BaseModel):
+    id: str
+    event_id: str
+    event_type: str
+    response_status: int | None = None
+    attempt_number: int
+    success: bool
+    attempted_at: datetime
+    created_at: datetime
 
 
 class ListResponse(BaseModel, Generic[T]):
@@ -159,6 +199,7 @@ class YouTubeParams(BaseModel):
     title: str | None = None
     privacy_status: YouTubePrivacy | None = None
     cover_url: str | None = None
+    made_for_kids: bool | None = None
 
 
 class PinterestParams(BaseModel):
@@ -176,6 +217,12 @@ class ThreadsParams(BaseModel):
 
 class TwitterParams(BaseModel):
     format: TwitterFormat | None = None
+
+
+class ThreadChildInput(BaseModel):
+    body: str
+    media: list[str] | None = None
+    media_files: list[str] | None = None
 
 
 class PlatformParams(BaseModel):

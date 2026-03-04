@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from postproxy import Post, PaginatedResponse, DeleteResponse, PlatformParams, FacebookParams, StatsResponse
+from postproxy import Post, PaginatedResponse, DeleteResponse, PlatformParams, FacebookParams, StatsResponse, ThreadChildInput, Media, ThreadChild
 from tests.conftest import MockTransport
 
 
@@ -198,6 +198,94 @@ async def test_stats_with_datetime_objects(client, transport: MockTransport):
     url = str(req.url)
     assert "from=2026-02-01" in url
     assert "to=2026-02-24" in url
+
+
+@pytest.mark.asyncio
+async def test_create_post_with_thread(client, transport: MockTransport):
+    transport.add("POST", "/api/posts", 201, {
+        **POST_DATA,
+        "thread": [
+            {"id": "t-1", "body": "Thread reply 1", "media": []},
+            {"id": "t-2", "body": "Thread reply 2", "media": []},
+        ],
+    })
+    post = await client.posts.create(
+        "Hello world",
+        ["profile-1"],
+        thread=[
+            ThreadChildInput(body="Thread reply 1"),
+            ThreadChildInput(body="Thread reply 2", media=["https://example.com/img.jpg"]),
+        ],
+    )
+    assert isinstance(post, Post)
+    assert len(post.thread) == 2
+    assert isinstance(post.thread[0], ThreadChild)
+    assert post.thread[0].body == "Thread reply 1"
+
+    import json
+    body = json.loads(transport.requests[0].content)
+    assert len(body["thread"]) == 2
+    assert body["thread"][0]["body"] == "Thread reply 1"
+    assert body["thread"][1]["media"] == ["https://example.com/img.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_get_post_with_media_and_thread(client, transport: MockTransport):
+    transport.add("GET", "/api/posts/abc123", 200, {
+        **POST_DATA,
+        "status": "media_processing_failed",
+        "media": [
+            {"id": "m-1", "status": "processed", "content_type": "image/jpeg", "url": "https://cdn.example.com/img.jpg"},
+        ],
+        "thread": [
+            {"id": "t-1", "body": "Reply", "media": [{"id": "m-2", "status": "pending", "content_type": "video/mp4"}]},
+        ],
+    })
+    post = await client.posts.get("abc123")
+    assert post.status == "media_processing_failed"
+    assert len(post.media) == 1
+    assert isinstance(post.media[0], Media)
+    assert post.media[0].status == "processed"
+    assert len(post.thread) == 1
+    assert post.thread[0].media[0].status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_create_thread_with_media_files(client, transport: MockTransport, tmp_path):
+    transport.add("POST", "/api/posts", 201, {
+        **POST_DATA,
+        "thread": [
+            {"id": "t-1", "body": "Thread reply 1", "media": []},
+            {
+                "id": "t-2",
+                "body": "Thread reply 2",
+                "media": [{"id": "m-1", "status": "pending", "content_type": "image/png"}],
+            },
+        ],
+    })
+
+    # Create a temp file to upload
+    img = tmp_path / "photo.png"
+    img.write_bytes(b"\x89PNG fake image data")
+
+    post = await client.posts.create(
+        "Thread with files",
+        ["profile-1"],
+        thread=[
+            ThreadChildInput(body="Thread reply 1"),
+            ThreadChildInput(body="Thread reply 2", media_files=[str(img)]),
+        ],
+    )
+    assert len(post.thread) == 2
+
+    req = transport.requests[0]
+    # Should be multipart, not JSON
+    assert "multipart/form-data" in req.headers["content-type"]
+    await req.aread()
+    body = req.content.decode("utf-8", errors="replace")
+    assert "Thread reply 1" in body
+    assert "Thread reply 2" in body
+    assert "photo.png" in body
 
 
 @pytest.mark.asyncio
