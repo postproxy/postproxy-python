@@ -76,6 +76,8 @@ class PostsResource:
         thread: List[ThreadChildInput] | None = None,
         scheduled_at: datetime | str | None = None,
         draft: bool | None = None,
+        queue_id: str | None = None,
+        queue_priority: str | None = None,
         profile_group_id: str | None = None,
     ) -> Post:
         scheduled_at_str: str | None = None
@@ -157,6 +159,10 @@ class PostsResource:
                 json_body["thread"] = [
                     t.model_dump(exclude_none=True, exclude={"media_files"}) for t in thread
                 ]
+            if queue_id is not None:
+                json_body["queue_id"] = queue_id
+            if queue_priority is not None:
+                json_body["queue_priority"] = queue_priority
 
             data = await self._client._request(
                 "POST",

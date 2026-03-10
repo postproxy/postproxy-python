@@ -165,6 +165,60 @@ result = await client.posts.stats(
 )
 ```
 
+### Queues
+
+```python
+# List all queues
+queues = (await client.queues.list()).data
+
+# Get a queue
+queue = await client.queues.get("queue-id")
+print(queue.name, queue.timeslots, queue.enabled)
+
+# Get next available slot
+next_slot = await client.queues.next_slot("queue-id")
+print(next_slot.next_slot)
+
+# Create a queue with timeslots
+queue = await client.queues.create(
+    "Morning Posts",
+    "profile-group-id",
+    description="Weekday morning content",
+    timezone="America/New_York",
+    jitter=10,
+    timeslots=[
+        {"day": 1, "time": "09:00"},
+        {"day": 2, "time": "09:00"},
+        {"day": 3, "time": "09:00"},
+    ],
+)
+
+# Update a queue
+queue = await client.queues.update(
+    "queue-id",
+    jitter=15,
+    timeslots=[
+        {"day": 6, "time": "10:00"},        # add new timeslot
+        {"id": 1, "_destroy": True},         # remove existing timeslot
+    ],
+)
+
+# Pause/unpause a queue
+await client.queues.update("queue-id", enabled=False)
+
+# Delete a queue
+result = await client.queues.delete("queue-id")
+print(result.deleted)  # True
+
+# Add a post to a queue
+post = await client.posts.create(
+    "This post will be scheduled by the queue",
+    profiles=["profile-id"],
+    queue_id="queue-id",
+    queue_priority="high",
+)
+```
+
 ### Profiles
 
 ```python
@@ -297,7 +351,7 @@ Key types:
 
 | Model | Fields |
 |---|---|
-| `Post` | id, body, status, scheduled_at, created_at, media, thread, platforms |
+| `Post` | id, body, status, scheduled_at, created_at, media, thread, platforms, queue_id, queue_priority |
 | `Profile` | id, name, status, platform, profile_group_id, expires_at, post_count |
 | `ProfileGroup` | id, name, profiles_count |
 | `Media` | id, type, url, status |
@@ -310,6 +364,9 @@ Key types:
 | `PostStats` | platforms |
 | `PlatformStats` | profile_id, platform, records |
 | `StatsRecord` | stats (dict), recorded_at |
+| `Queue` | id, name, description, timezone, enabled, jitter, profile_group_id, timeslots, posts_count |
+| `Timeslot` | id, day, time |
+| `NextSlotResponse` | next_slot |
 | `ListResponse[T]` | data |
 | `PaginatedResponse[T]` | total, page, per_page, data |
 

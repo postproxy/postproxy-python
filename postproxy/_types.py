@@ -88,6 +88,8 @@ class Post(BaseModel):
     media: list[Media] = []
     platforms: list[PlatformResult] = []
     thread: list[ThreadChild] = []
+    queue_id: str | None = None
+    queue_priority: str | None = None
 
 
 class Webhook(BaseModel):
@@ -217,6 +219,31 @@ class ThreadsParams(BaseModel):
 
 class TwitterParams(BaseModel):
     format: TwitterFormat | None = None
+
+
+# --- Queue models ---
+
+
+class Timeslot(BaseModel):
+    id: int
+    day: int
+    time: str
+
+
+class Queue(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    timezone: str
+    enabled: bool
+    jitter: int
+    profile_group_id: str
+    timeslots: list[Timeslot] = []
+    posts_count: int
+
+
+class NextSlotResponse(BaseModel):
+    next_slot: str
 
 
 class ThreadChildInput(BaseModel):
