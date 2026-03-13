@@ -23,7 +23,7 @@ PlatformPostStatus = Literal["pending", "processing", "published", "failed", "de
 
 InstagramFormat = Literal["post", "reel", "story"]
 
-FacebookFormat = Literal["post", "story"]
+FacebookFormat = Literal["post", "story", "reel"]
 
 TikTokFormat = Literal["video", "image"]
 
