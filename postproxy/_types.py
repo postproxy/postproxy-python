@@ -164,6 +164,7 @@ class StatsResponse(BaseModel):
 
 class FacebookParams(BaseModel):
     format: FacebookFormat | None = None
+    title: str | None = None
     first_comment: str | None = None
     page_id: str | None = None
 
