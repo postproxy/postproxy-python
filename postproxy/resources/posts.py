@@ -172,6 +172,117 @@ class PostsResource:
             )
         return Post.model_validate(data)
 
+    async def update(
+        self,
+        id: str,
+        *,
+        body: str | None = None,
+        profiles: List[str] | None = None,
+        media: List[str] | None = None,
+        media_files: List[str | Path] | None = None,
+        platforms: PlatformParams | None = None,
+        thread: List[ThreadChildInput] | None = None,
+        scheduled_at: datetime | str | None = None,
+        draft: bool | None = None,
+        queue_id: str | None = None,
+        queue_priority: str | None = None,
+        profile_group_id: str | None = None,
+    ) -> Post:
+        scheduled_at_str: str | None = None
+        if scheduled_at is not None:
+            scheduled_at_str = (
+                scheduled_at.isoformat()
+                if isinstance(scheduled_at, datetime)
+                else scheduled_at
+            )
+
+        has_thread_files = thread is not None and any(
+            t.media_files for t in thread
+        )
+
+        if media_files is not None or has_thread_files:
+            form_data: dict[str, Any] = {}
+            if body is not None:
+                form_data["post[body]"] = body
+            if scheduled_at_str is not None:
+                form_data["post[scheduled_at]"] = scheduled_at_str
+            if draft is not None:
+                form_data["post[draft]"] = str(draft).lower()
+
+            files: list[tuple[str, tuple[str | None, Any, str]]] = []
+            if profiles is not None:
+                for p in profiles:
+                    files.append(("profiles[]", (None, p, "text/plain")))
+            if media is not None:
+                for url in media:
+                    files.append(("media[]", (None, url, "text/plain")))
+            if platforms is not None:
+                for platform, params in platforms.model_dump(exclude_none=True).items():
+                    for key, value in params.items():
+                        files.append(
+                            (f"platforms[{platform}][{key}]", (None, str(value), "text/plain"))
+                        )
+            if media_files is not None:
+                for file_path in media_files:
+                    path = Path(file_path)
+                    content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+                    files.append(("media[]", (path.name, open(path, "rb"), content_type)))
+
+            if thread is not None:
+                for i, t in enumerate(thread):
+                    files.append((f"thread[{i}][body]", (None, t.body, "text/plain")))
+                    if t.media is not None:
+                        for url in t.media:
+                            files.append((f"thread[{i}][media][]", (None, url, "text/plain")))
+                    if t.media_files is not None:
+                        for file_path in t.media_files:
+                            path = Path(file_path)
+                            content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+                            files.append((f"thread[{i}][media][]", (path.name, open(path, "rb"), content_type)))
+
+            data = await self._client._request(
+                "PATCH",
+                f"/posts/{id}",
+                data=form_data,
+                files=files,
+                profile_group_id=profile_group_id,
+            )
+        else:
+            json_body: dict[str, Any] = {}
+
+            post_payload: dict[str, Any] = {}
+            if body is not None:
+                post_payload["body"] = body
+            if scheduled_at_str is not None:
+                post_payload["scheduled_at"] = scheduled_at_str
+            if draft is not None:
+                post_payload["draft"] = draft
+            if post_payload:
+                json_body["post"] = post_payload
+
+            if profiles is not None:
+                json_body["profiles"] = profiles
+            if platforms is not None:
+                json_body["platforms"] = platforms.model_dump(exclude_none=True)
+            if media is not None:
+                json_body["media"] = media
+            if thread is not None:
+                json_body["thread"] = [
+                    t.model_dump(exclude_none=True, exclude={"media_files"}) for t in thread
+                ]
+            if queue_id is not None:
+                json_body["queue_id"] = queue_id
+            if queue_priority is not None:
+                json_body["queue_priority"] = queue_priority
+
+            data = await self._client._request(
+                "PATCH",
+                f"/posts/{id}",
+                json=json_body,
+                profile_group_id=profile_group_id,
+            )
+        return Post.model_validate(data)
+
     async def publish_draft(
         self, id: str, *, profile_group_id: str | None = None
     ) -> Post:
