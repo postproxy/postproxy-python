@@ -130,6 +130,35 @@ post = await client.posts.create(
 # Publish a draft
 post = await client.posts.publish_draft("post-id")
 
+# Update a post (only drafts or scheduled posts)
+post = await client.posts.update("post-id", body="Updated content!")
+
+# Update platform params only
+from postproxy import PlatformParams, YouTubeParams
+post = await client.posts.update(
+    "post-id",
+    platforms=PlatformParams(youtube=YouTubeParams(privacy_status="unlisted")),
+)
+
+# Replace profiles and media
+post = await client.posts.update(
+    "post-id",
+    profiles=["twitter", "threads"],
+    media=["https://example.com/new-image.jpg"],
+)
+
+# Replace thread children
+post = await client.posts.update(
+    "post-id",
+    thread=[
+        ThreadChildInput(body="Updated first reply"),
+        ThreadChildInput(body="Updated second reply", media=["https://example.com/img.jpg"]),
+    ],
+)
+
+# Remove all media
+post = await client.posts.update("post-id", media=[])
+
 # Create a thread post
 from postproxy import ThreadChildInput
 
@@ -290,6 +319,41 @@ is_valid = verify_signature(
 )
 ```
 
+### Comments
+
+```python
+# List comments on a post (paginated)
+comments = await client.comments.list("post-id", "profile-id")
+for comment in comments.data:
+    print(comment.author_username, comment.body)
+    for reply in comment.replies:
+        print(f"  {reply.author_username}: {reply.body}")
+
+# List with pagination
+comments = await client.comments.list("post-id", "profile-id", page=2, per_page=10)
+
+# Get a single comment
+comment = await client.comments.get("post-id", "comment-id", "profile-id")
+
+# Create a comment
+comment = await client.comments.create("post-id", "profile-id", text="Great post!")
+
+# Reply to a comment
+reply = await client.comments.create("post-id", "profile-id", text="Thanks!", parent_id="comment-id")
+
+# Delete a comment
+result = await client.comments.delete("post-id", "comment-id", "profile-id")
+print(result.accepted)  # True
+
+# Hide / unhide a comment
+await client.comments.hide("post-id", "comment-id", "profile-id")
+await client.comments.unhide("post-id", "comment-id", "profile-id")
+
+# Like / unlike a comment
+await client.comments.like("post-id", "comment-id", "profile-id")
+await client.comments.unlike("post-id", "comment-id", "profile-id")
+```
+
 ### Profile Groups
 
 ```python
@@ -368,6 +432,8 @@ Key types:
 | `Timeslot` | id, day, time |
 | `NextSlotResponse` | next_slot |
 | `ListResponse[T]` | data |
+| `Comment` | id, external_id, body, status, author_username, author_avatar_url, author_external_id, parent_external_id, like_count, is_hidden, permalink, platform_data, posted_at, created_at, replies |
+| `AcceptedResponse` | accepted |
 | `PaginatedResponse[T]` | total, page, per_page, data |
 
 ### Platform parameter models

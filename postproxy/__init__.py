@@ -24,6 +24,8 @@ from ._exceptions import (
     ValidationError,
 )
 from ._types import (
+    AcceptedResponse,
+    Comment,
     ConnectionResponse,
     DeleteResponse,
     FacebookParams,
@@ -84,6 +86,8 @@ __all__ = [
     "NotFoundError",
     "ValidationError",
     # Types
+    "AcceptedResponse",
+    "Comment",
     "ConnectionResponse",
     "DeleteResponse",
     "FacebookParams",
