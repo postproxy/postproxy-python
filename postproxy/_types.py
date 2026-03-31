@@ -132,6 +132,28 @@ class SuccessResponse(BaseModel):
     success: bool
 
 
+class AcceptedResponse(BaseModel):
+    accepted: bool
+
+
+class Comment(BaseModel):
+    id: str
+    external_id: str | None = None
+    body: str
+    status: str
+    author_username: str | None = None
+    author_avatar_url: str | None = None
+    author_external_id: str | None = None
+    parent_external_id: str | None = None
+    like_count: int = 0
+    is_hidden: bool = False
+    permalink: str | None = None
+    platform_data: dict | None = None
+    posted_at: datetime | None = None
+    created_at: datetime
+    replies: list[Comment] = []
+
+
 class ConnectionResponse(BaseModel):
     url: str
     success: bool

@@ -35,12 +35,14 @@ class PostProxy:
         from .resources.profile_groups import ProfileGroupsResource
         from .resources.webhooks import WebhooksResource
         from .resources.queues import QueuesResource
+        from .resources.comments import CommentsResource
 
         self.posts = PostsResource(self)
         self.profiles = ProfilesResource(self)
         self.profile_groups = ProfileGroupsResource(self)
         self.webhooks = WebhooksResource(self)
         self.queues = QueuesResource(self)
+        self.comments = CommentsResource(self)
 
     async def _request(
         self,
