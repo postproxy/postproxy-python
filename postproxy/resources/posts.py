@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, List
 
 from .._types import (
+    DeleteOnPlatformResponse,
     DeleteResponse,
     PaginatedResponse,
     PlatformParams,
@@ -100,6 +101,10 @@ class PostsResource:
                 form_data["post[scheduled_at]"] = scheduled_at_str
             if draft is not None:
                 form_data["post[draft]"] = str(draft).lower()
+            if queue_id is not None:
+                form_data["queue_id"] = queue_id
+            if queue_priority is not None:
+                form_data["queue_priority"] = queue_priority
 
             files: list[tuple[str, tuple[str | None, Any, str]]] = []
             for p in profiles:
@@ -208,6 +213,10 @@ class PostsResource:
                 form_data["post[scheduled_at]"] = scheduled_at_str
             if draft is not None:
                 form_data["post[draft]"] = str(draft).lower()
+            if queue_id is not None:
+                form_data["queue_id"] = queue_id
+            if queue_priority is not None:
+                form_data["queue_priority"] = queue_priority
 
             files: list[tuple[str, tuple[str | None, Any, str]]] = []
             if profiles is not None:
@@ -327,11 +336,43 @@ class PostsResource:
         return StatsResponse.model_validate(data)
 
     async def delete(
-        self, id: str, *, profile_group_id: str | None = None
+        self,
+        id: str,
+        *,
+        delete_on_platform: bool | None = None,
+        profile_group_id: str | None = None,
     ) -> DeleteResponse:
+        params: dict[str, Any] = {}
+        if delete_on_platform is not None:
+            params["delete_on_platform"] = str(delete_on_platform).lower()
         data = await self._client._request(
             "DELETE",
             f"/posts/{id}",
+            params=params or None,
             profile_group_id=profile_group_id,
         )
         return DeleteResponse.model_validate(data)
+
+    async def delete_on_platform(
+        self,
+        id: str,
+        *,
+        post_profile_id: str | None = None,
+        profile_id: str | None = None,
+        network: str | None = None,
+        profile_group_id: str | None = None,
+    ) -> DeleteOnPlatformResponse:
+        json_body: dict[str, Any] = {}
+        if post_profile_id is not None:
+            json_body["post_profile_id"] = post_profile_id
+        if profile_id is not None:
+            json_body["profile_id"] = profile_id
+        if network is not None:
+            json_body["network"] = network
+        data = await self._client._request(
+            "POST",
+            f"/posts/{id}/delete_on_platform",
+            json=json_body or None,
+            profile_group_id=profile_group_id,
+        )
+        return DeleteOnPlatformResponse.model_validate(data)

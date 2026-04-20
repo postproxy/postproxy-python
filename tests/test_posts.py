@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from postproxy import Post, PaginatedResponse, DeleteResponse, PlatformParams, FacebookParams, StatsResponse, ThreadChildInput, Media, ThreadChild
+from postproxy import Post, PaginatedResponse, DeleteResponse, DeleteOnPlatformResponse, PlatformParams, FacebookParams, StatsResponse, ThreadChildInput, Media, ThreadChild
 from tests.conftest import MockTransport
 
 
@@ -294,3 +296,67 @@ async def test_delete_post(client, transport: MockTransport):
     result = await client.posts.delete("abc123")
     assert isinstance(result, DeleteResponse)
     assert result.deleted is True
+
+
+@pytest.mark.asyncio
+async def test_delete_post_with_delete_on_platform(client, transport: MockTransport):
+    transport.add("DELETE", "/api/posts/abc123", 200, {"deleted": True})
+    result = await client.posts.delete("abc123", delete_on_platform=True)
+    assert result.deleted is True
+    req = transport.requests[0]
+    assert "delete_on_platform=true" in str(req.url)
+
+
+@pytest.mark.asyncio
+async def test_delete_on_platform_all(client, transport: MockTransport):
+    transport.add(
+        "POST",
+        "/api/posts/abc123/delete_on_platform",
+        200,
+        {
+            "success": True,
+            "deleting": [{"post_profile_id": "pp-1", "platform": "twitter"}],
+        },
+    )
+    result = await client.posts.delete_on_platform("abc123")
+    assert isinstance(result, DeleteOnPlatformResponse)
+    assert result.success is True
+    assert len(result.deleting) == 1
+    assert result.deleting[0].platform == "twitter"
+    assert result.deleting[0].post_profile_id == "pp-1"
+
+
+@pytest.mark.asyncio
+async def test_delete_on_platform_by_network(client, transport: MockTransport):
+    transport.add(
+        "POST", "/api/posts/abc123/delete_on_platform", 200,
+        {"success": True, "deleting": []},
+    )
+    await client.posts.delete_on_platform("abc123", network="twitter")
+    req = transport.requests[0]
+    body = json.loads(req.content)
+    assert body == {"network": "twitter"}
+
+
+@pytest.mark.asyncio
+async def test_delete_on_platform_by_profile_id(client, transport: MockTransport):
+    transport.add(
+        "POST", "/api/posts/abc123/delete_on_platform", 200,
+        {"success": True, "deleting": []},
+    )
+    await client.posts.delete_on_platform("abc123", profile_id="prof-1")
+    req = transport.requests[0]
+    body = json.loads(req.content)
+    assert body == {"profile_id": "prof-1"}
+
+
+@pytest.mark.asyncio
+async def test_delete_on_platform_by_post_profile_id(client, transport: MockTransport):
+    transport.add(
+        "POST", "/api/posts/abc123/delete_on_platform", 200,
+        {"success": True, "deleting": []},
+    )
+    await client.posts.delete_on_platform("abc123", post_profile_id="pp-1")
+    req = transport.requests[0]
+    body = json.loads(req.content)
+    assert body == {"post_profile_id": "pp-1"}

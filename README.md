@@ -177,6 +177,19 @@ for child in post.thread:
 result = await client.posts.delete("post-id")
 print(result.deleted)  # True
 
+# Delete a post and also remove it from social platforms
+result = await client.posts.delete("post-id", delete_on_platform=True)
+
+# Delete from platforms only (keeps DB record). Defaults to all platforms.
+r1 = await client.posts.delete_on_platform("post-id")
+# Target a single network
+r2 = await client.posts.delete_on_platform("post-id", network="twitter")
+# Target a specific profile
+r3 = await client.posts.delete_on_platform("post-id", profile_id="prof-abc")
+# Target a specific post profile (covers entire thread for that profile)
+r4 = await client.posts.delete_on_platform("post-id", post_profile_id="pp-abc")
+print(r1.deleting)  # [DeletingPlatform(post_profile_id=..., platform=...)]
+
 # Get post stats
 result = await client.posts.stats(["post-id-1", "post-id-2"])
 for post_id, post_stats in result.data.items():
@@ -444,7 +457,7 @@ Key types:
 | `InstagramParams` | format (`post`, `reel`, `story`), first_comment, collaborators, cover_url, audio_name, trial_strategy, thumb_offset |
 | `TikTokParams` | format (`video`, `image`), privacy_status, photo_cover_index, auto_add_music, made_with_ai, disable_comment, disable_duet, disable_stitch, brand_content_toggle, brand_organic_toggle |
 | `LinkedInParams` | format (`post`), organization_id |
-| `YouTubeParams` | format (`post`), title, privacy_status, cover_url |
+| `YouTubeParams` | format (`post`), title, privacy_status, cover_url, made_for_kids, tags, category_id, contains_synthetic_media |
 | `PinterestParams` | format (`pin`), title, board_id, destination_link, cover_url, thumb_offset |
 | `ThreadsParams` | format (`post`) |
 | `TwitterParams` | format (`post`) |

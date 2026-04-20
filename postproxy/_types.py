@@ -55,11 +55,19 @@ class Insights(BaseModel):
     on: datetime | None = None
 
 
+class ErrorDetails(BaseModel):
+    platform_error_code: str | None = None
+    platform_error_subcode: str | None = None
+    platform_error_message: str | None = None
+    postproxy_note: str | None = None
+
+
 class PlatformResult(BaseModel):
     platform: Platform
     status: PlatformPostStatus
     params: dict | None = None
     error: str | None = None
+    error_details: ErrorDetails | None = None
     attempted_at: datetime | None = None
     insights: Insights | None = None
 
@@ -126,6 +134,16 @@ class PaginatedResponse(ListResponse[T]):
 
 class DeleteResponse(BaseModel):
     deleted: bool
+
+
+class DeletingPlatform(BaseModel):
+    post_profile_id: str
+    platform: Platform
+
+
+class DeleteOnPlatformResponse(BaseModel):
+    success: bool
+    deleting: list[DeletingPlatform] = []
 
 
 class SuccessResponse(BaseModel):
@@ -225,6 +243,9 @@ class YouTubeParams(BaseModel):
     privacy_status: YouTubePrivacy | None = None
     cover_url: str | None = None
     made_for_kids: bool | None = None
+    tags: list[str] | None = None
+    category_id: str | None = None
+    contains_synthetic_media: bool | None = None
 
 
 class PinterestParams(BaseModel):
