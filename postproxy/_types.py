@@ -225,6 +225,9 @@ class YouTubeParams(BaseModel):
     privacy_status: YouTubePrivacy | None = None
     cover_url: str | None = None
     made_for_kids: bool | None = None
+    tags: list[str] | None = None
+    category_id: str | None = None
+    contains_synthetic_media: bool | None = None
 
 
 class PinterestParams(BaseModel):
