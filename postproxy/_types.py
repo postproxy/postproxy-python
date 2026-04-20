@@ -136,6 +136,16 @@ class DeleteResponse(BaseModel):
     deleted: bool
 
 
+class DeletingPlatform(BaseModel):
+    post_profile_id: str
+    platform: Platform
+
+
+class DeleteOnPlatformResponse(BaseModel):
+    success: bool
+    deleting: list[DeletingPlatform] = []
+
+
 class SuccessResponse(BaseModel):
     success: bool
 

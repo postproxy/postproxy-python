@@ -177,6 +177,19 @@ for child in post.thread:
 result = await client.posts.delete("post-id")
 print(result.deleted)  # True
 
+# Delete a post and also remove it from social platforms
+result = await client.posts.delete("post-id", delete_on_platform=True)
+
+# Delete from platforms only (keeps DB record). Defaults to all platforms.
+r1 = await client.posts.delete_on_platform("post-id")
+# Target a single network
+r2 = await client.posts.delete_on_platform("post-id", network="twitter")
+# Target a specific profile
+r3 = await client.posts.delete_on_platform("post-id", profile_id="prof-abc")
+# Target a specific post profile (covers entire thread for that profile)
+r4 = await client.posts.delete_on_platform("post-id", post_profile_id="pp-abc")
+print(r1.deleting)  # [DeletingPlatform(post_profile_id=..., platform=...)]
+
 # Get post stats
 result = await client.posts.stats(["post-id-1", "post-id-2"])
 for post_id, post_stats in result.data.items():
