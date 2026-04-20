@@ -100,6 +100,10 @@ class PostsResource:
                 form_data["post[scheduled_at]"] = scheduled_at_str
             if draft is not None:
                 form_data["post[draft]"] = str(draft).lower()
+            if queue_id is not None:
+                form_data["queue_id"] = queue_id
+            if queue_priority is not None:
+                form_data["queue_priority"] = queue_priority
 
             files: list[tuple[str, tuple[str | None, Any, str]]] = []
             for p in profiles:
@@ -208,6 +212,10 @@ class PostsResource:
                 form_data["post[scheduled_at]"] = scheduled_at_str
             if draft is not None:
                 form_data["post[draft]"] = str(draft).lower()
+            if queue_id is not None:
+                form_data["queue_id"] = queue_id
+            if queue_priority is not None:
+                form_data["queue_priority"] = queue_priority
 
             files: list[tuple[str, tuple[str | None, Any, str]]] = []
             if profiles is not None:
