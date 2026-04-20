@@ -55,11 +55,19 @@ class Insights(BaseModel):
     on: datetime | None = None
 
 
+class ErrorDetails(BaseModel):
+    platform_error_code: str | None = None
+    platform_error_subcode: str | None = None
+    platform_error_message: str | None = None
+    postproxy_note: str | None = None
+
+
 class PlatformResult(BaseModel):
     platform: Platform
     status: PlatformPostStatus
     params: dict | None = None
     error: str | None = None
+    error_details: ErrorDetails | None = None
     attempted_at: datetime | None = None
     insights: Insights | None = None
 
