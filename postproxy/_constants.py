@@ -1,6 +1,8 @@
-from typing import Literal
+from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
+
+VERSION = "1.8.0"
 
 Platform = Literal[
     "facebook",
@@ -11,6 +13,8 @@ Platform = Literal[
     "twitter",
     "threads",
     "pinterest",
+    "bluesky",
+    "telegram",
 ]
 
 ProfileStatus = Literal["active", "expired", "inactive"]
@@ -37,6 +41,10 @@ ThreadsFormat = Literal["post"]
 
 TwitterFormat = Literal["post"]
 
+BlueskyFormat = Literal["post"]
+
+TelegramFormat = Literal["post"]
+
 TikTokPrivacy = Literal[
     "PUBLIC_TO_EVERYONE",
     "MUTUAL_FOLLOW_FRIENDS",
@@ -45,3 +53,21 @@ TikTokPrivacy = Literal[
 ]
 
 YouTubePrivacy = Literal["public", "unlisted", "private"]
+
+TelegramParseMode = Literal["HTML", "MarkdownV2"]
+
+WebhookEventType = Literal[
+    "post.processed",
+    "post.imported",
+    "platform_post.published",
+    "platform_post.failed",
+    "platform_post.failed_waiting_for_retry",
+    "platform_post.insights",
+    "profile.connected",
+    "profile.disconnected",
+    "profile.stats",
+    "media.failed",
+    "comment.created",
+]
+
+WEBHOOK_EVENT_TYPES: tuple[str, ...] = get_args(WebhookEventType)

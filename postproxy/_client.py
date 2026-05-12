@@ -4,7 +4,10 @@ from typing import Any
 
 import httpx
 
-from ._constants import DEFAULT_BASE_URL
+import platform as _py_platform
+import sys
+
+from ._constants import DEFAULT_BASE_URL, VERSION
 from ._exceptions import (
     AuthenticationError,
     BadRequestError,
@@ -12,6 +15,10 @@ from ._exceptions import (
     PostProxyError,
     ValidationError,
 )
+
+
+_PY_VER = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+_USER_AGENT = f"postproxy-python/{VERSION} (python/{_PY_VER}; {_py_platform.system().lower()})"
 
 
 class PostProxy:
@@ -64,7 +71,10 @@ class PostProxy:
         if params:
             query.update(params)
 
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": _USER_AGENT,
+        }
 
         response = await self._client.request(
             method,

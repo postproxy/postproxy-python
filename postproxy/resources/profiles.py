@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any
 
-from .._types import ListResponse, Placement, Profile, SuccessResponse
+from .._types import (
+    ListResponse,
+    Placement,
+    Profile,
+    ProfileStatsResponse,
+    SuccessResponse,
+)
 
 if TYPE_CHECKING:
     from .._client import PostProxy
@@ -39,6 +45,35 @@ class ProfilesResource:
             profile_group_id=profile_group_id,
         )
         return ListResponse[Placement].model_validate(data)
+
+    async def get_profile_stats(
+        self,
+        id: str,
+        *,
+        placement_id: str | None = None,
+        from_: str | None = None,
+        to: str | None = None,
+        profile_group_id: str | None = None,
+    ) -> ProfileStatsResponse:
+        """Fetch the profile stats timeseries.
+
+        `placement_id` is required for facebook, linkedin, and telegram profiles.
+        """
+        params: dict[str, Any] = {}
+        if placement_id is not None:
+            params["placement_id"] = placement_id
+        if from_ is not None:
+            params["from"] = from_
+        if to is not None:
+            params["to"] = to
+
+        data = await self._client._request(
+            "GET",
+            f"/profiles/{id}/stats",
+            params=params or None,
+            profile_group_id=profile_group_id,
+        )
+        return ProfileStatsResponse.model_validate(data)
 
     async def delete(
         self, id: str, *, profile_group_id: str | None = None

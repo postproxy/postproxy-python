@@ -332,6 +332,38 @@ is_valid = verify_signature(
 )
 ```
 
+#### Event types and typed payloads
+
+Subscribe to any of these events (or pass `["*"]` for all):
+
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`.
+
+`parse_event_typed` validates the envelope and returns `(envelope, typed_data)`:
+
+```python
+from postproxy import (
+    parse_event_typed,
+    WebhookParseError,
+    ProfileStatsData,
+    PlatformPostData,
+    CommentCreatedData,
+)
+
+try:
+    envelope, data = parse_event_typed(request.body)
+    if envelope.type == "profile.stats":
+        assert isinstance(data, ProfileStatsData)
+        print(data.profile_id, data.stats)
+    elif envelope.type == "platform_post.published":
+        assert isinstance(data, PlatformPostData)
+        print("Published:", data.platform_id)
+    elif envelope.type == "comment.created":
+        assert isinstance(data, CommentCreatedData)
+        print(f"{data.author_username}: {data.body}")
+except WebhookParseError as e:
+    print("Bad webhook body:", e)
+```
+
 ### Comments
 
 ```python
@@ -384,13 +416,56 @@ group = await client.profile_groups.create("My New Group")
 result = await client.profile_groups.delete("pg-id")
 print(result.deleted)  # True
 
-# Initialize a social platform connection
+# Initialize an OAuth platform connection
 conn = await client.profile_groups.initialize_connection(
     "pg-id",
     platform="instagram",
     redirect_url="https://yourapp.com/callback",
 )
 print(conn.url)  # Redirect the user to this URL
+
+# BlueSky — app password flow, synchronous
+bsky = await client.profile_groups.connect_bluesky(
+    "pg-id",
+    identifier="yourname.bsky.social",
+    app_password="xxxx-xxxx-xxxx-xxxx",
+)
+print(bsky.profile.id)
+
+# Telegram — bring-your-own-bot. Channels populate asynchronously; poll
+# placements until non-empty.
+tg = await client.profile_groups.connect_telegram(
+    "pg-id",
+    bot_token="123456789:ABCdef-GhIJklMnOpQrStUvWxYz",
+)
+print(tg.profile.id, tg.next_step)
+
+import asyncio
+placements = []
+while not placements:
+    placements = (await client.profiles.placements(tg.profile.id)).data
+    if not placements:
+        await asyncio.sleep(3)
+print("Channels:", [(p.id, p.name) for p in placements])
+```
+
+### Profile stats
+
+Fetch the per-profile stats timeseries. `placement_id` is required for `facebook`, `linkedin`, and `telegram` profiles.
+
+```python
+# LinkedIn organization
+stats = await client.profiles.get_profile_stats(
+    "prof_li_001",
+    placement_id="108520199",
+    from_="2026-04-01T00:00:00Z",
+)
+for r in stats.data.records:
+    print(r.recorded_at, r.stats.get("followerCount"))
+
+# Bluesky — no placements
+bsky = await client.profiles.get_profile_stats("prof_bsky_001")
+print(bsky.data.records[-1].stats.get("followersCount"))
 ```
 
 ## Error handling
@@ -461,8 +536,12 @@ Key types:
 | `PinterestParams` | format (`pin`), title, board_id, destination_link, cover_url, thumb_offset |
 | `ThreadsParams` | format (`post`) |
 | `TwitterParams` | format (`post`) |
+| `BlueskyParams` | format (`post`) |
+| `TelegramParams` | format (`post`), chat_id (required), parse_mode (`HTML`, `MarkdownV2`), disable_link_preview, disable_notification |
 
-Wrap them in `PlatformParams` when passing to `posts.create()`.
+Wrap them in `PlatformParams` when passing to `posts.create()`. Telegram needs a `chat_id` per post — list available channels with `client.profiles.placements(profile_id)`.
+
+Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram.
 
 ## Development
 

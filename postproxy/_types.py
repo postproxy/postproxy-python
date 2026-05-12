@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel
 
 from ._constants import (
+    BlueskyFormat,
     FacebookFormat,
     InstagramFormat,
     LinkedInFormat,
@@ -15,10 +16,13 @@ from ._constants import (
     PlatformPostStatus,
     PostStatus,
     ProfileStatus,
+    TelegramFormat,
+    TelegramParseMode,
     ThreadsFormat,
     TikTokFormat,
     TikTokPrivacy,
     TwitterFormat,
+    WebhookEventType,
     YouTubeFormat,
     YouTubePrivacy,
 )
@@ -172,16 +176,41 @@ class Comment(BaseModel):
     replies: list[Comment] = []
 
 
-class ConnectionResponse(BaseModel):
+# --- Connection models ---
+
+
+class OAuthConnectionResponse(BaseModel):
     url: str
     success: bool
+
+
+class SyncProfile(BaseModel):
+    id: str
+    network: Platform
+    name: str
+    external_username: str | None = None
+
+
+class BlueskyConnectionResponse(BaseModel):
+    success: bool
+    profile: SyncProfile
+
+
+class TelegramConnectionResponse(BaseModel):
+    success: bool
+    profile: SyncProfile
+    next_step: str | None = None
+
+
+# Backwards-compatible alias — the same response shape as OAuthConnectionResponse.
+ConnectionResponse = OAuthConnectionResponse
 
 
 # --- Stats models ---
 
 
 class StatsRecord(BaseModel):
-    stats: dict[str, int | float]
+    stats: dict[str, Any]
     recorded_at: datetime
 
 
@@ -197,6 +226,124 @@ class PostStats(BaseModel):
 
 class StatsResponse(BaseModel):
     data: dict[str, PostStats]
+
+
+class ProfileStats(BaseModel):
+    profile_id: str
+    platform: Platform
+    placement_id: str | None = None
+    records: list[StatsRecord] = []
+
+
+class ProfileStatsResponse(BaseModel):
+    data: ProfileStats
+
+
+# --- Webhook event payloads ---
+
+
+class PostProcessedPlatform(BaseModel):
+    id: str
+    platform: Platform
+    name: str
+
+
+class PostProcessedData(BaseModel):
+    id: str
+    body: str
+    status: PostStatus
+    scheduled_at: datetime | None = None
+    created_at: datetime
+    platforms: list[PostProcessedPlatform] = []
+
+
+class ImportedProfile(BaseModel):
+    id: str
+    name: str
+    platform: Platform
+
+
+class PostImportedData(BaseModel):
+    id: str
+    body: str
+    source: Literal["imported"] = "imported"
+    posted_at: datetime | None = None
+    created_at: datetime
+    platform: Platform
+    profile: ImportedProfile
+    platform_post_id: str
+    public_id: str | None = None
+
+
+class PlatformPostData(BaseModel):
+    id: str
+    post_id: str
+    platform: Platform
+    profile_id: str
+    profile_name: str
+    status: PlatformPostStatus
+    error: str | None = None
+    error_details: ErrorDetails | None = None
+    platform_id: str | None = None
+
+
+class PlatformPostInsightsData(PlatformPostData):
+    insights: dict[str, Any] = {}
+
+
+class ProfileEventData(BaseModel):
+    id: str
+    name: str
+    platform: Platform
+    profile_group_id: str
+    status: str
+    uid: str
+    username: str | None = None
+
+
+class ProfileStatsData(BaseModel):
+    profile_id: str
+    platform: Platform
+    placement_id: str | None = None
+    stats: dict[str, Any] = {}
+    recorded_at: datetime
+
+
+class MediaFailedData(BaseModel):
+    id: str
+    post_id: str
+    content_type: str
+    status: str
+    error_message: str
+
+
+class CommentCreatedData(BaseModel):
+    id: str
+    post_id: str
+    platform_post_id: str
+    platform: Platform
+    external_id: str | None = None
+    parent_external_id: str | None = None
+    body: str
+    status: str
+    author_external_id: str | None = None
+    author_name: str | None = None
+    author_username: str | None = None
+    author_avatar_url: str | None = None
+    like_count: int = 0
+    reply_count: int = 0
+    is_hidden: bool = False
+    permalink: str | None = None
+    platform_data: dict | None = None
+    posted_at: datetime | None = None
+    created_at: datetime
+
+
+class WebhookEvent(BaseModel):
+    id: str
+    type: WebhookEventType
+    created_at: datetime
+    data: dict[str, Any]
 
 
 # --- Platform parameter models ---
@@ -265,6 +412,18 @@ class TwitterParams(BaseModel):
     format: TwitterFormat | None = None
 
 
+class BlueskyParams(BaseModel):
+    format: BlueskyFormat | None = None
+
+
+class TelegramParams(BaseModel):
+    format: TelegramFormat | None = None
+    chat_id: str
+    parse_mode: TelegramParseMode | None = None
+    disable_link_preview: bool | None = None
+    disable_notification: bool | None = None
+
+
 # --- Queue models ---
 
 
@@ -305,3 +464,5 @@ class PlatformParams(BaseModel):
     pinterest: PinterestParams | None = None
     threads: ThreadsParams | None = None
     twitter: TwitterParams | None = None
+    bluesky: BlueskyParams | None = None
+    telegram: TelegramParams | None = None
