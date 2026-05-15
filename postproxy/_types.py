@@ -76,6 +76,13 @@ class PlatformResult(BaseModel):
     insights: Insights | None = None
 
 
+class MediaPlatformError(BaseModel):
+    platform: Platform
+    status: PlatformPostStatus
+    error: str | None = None
+    error_details: ErrorDetails | None = None
+
+
 class Media(BaseModel):
     id: str
     status: MediaStatus
@@ -83,6 +90,7 @@ class Media(BaseModel):
     content_type: str
     source_url: str | None = None
     url: str | None = None
+    platforms: list[MediaPlatformError] | None = None
 
 
 class ThreadChild(BaseModel):
@@ -156,6 +164,21 @@ class SuccessResponse(BaseModel):
 
 class AcceptedResponse(BaseModel):
     accepted: bool
+
+
+class ProfileComment(BaseModel):
+    id: str
+    external_id: str
+    parent_external_id: str | None = None
+    placement_id: str
+    body: str
+    status: str
+    author_username: str | None = None
+    author_avatar_url: str | None = None
+    platform_data: dict | None = None
+    posted_at: datetime
+    created_at: datetime
+    replies: list[ProfileComment] = []
 
 
 class Comment(BaseModel):
@@ -466,3 +489,4 @@ class PlatformParams(BaseModel):
     twitter: TwitterParams | None = None
     bluesky: BlueskyParams | None = None
     telegram: TelegramParams | None = None
+    google_business: dict[str, Any] | None = None

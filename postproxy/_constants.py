@@ -2,7 +2,7 @@ from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
 
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 
 Platform = Literal[
     "facebook",
@@ -15,6 +15,7 @@ Platform = Literal[
     "pinterest",
     "bluesky",
     "telegram",
+    "google_business",
 ]
 
 ProfileStatus = Literal["active", "expired", "inactive"]

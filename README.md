@@ -399,6 +399,34 @@ await client.comments.like("post-id", "comment-id", "profile-id")
 await client.comments.unlike("post-id", "comment-id", "profile-id")
 ```
 
+### Profile comments (Google Business reviews)
+
+Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
+
+```python
+# List reviews for a profile (paginated)
+reviews = await client.profile_comments.list("profile-id")
+for review in reviews.data:
+    print(review.author_username, (review.platform_data or {}).get("star_rating"), review.body)
+    for reply in review.replies:
+        print(f"  reply: {reply.body}")
+
+# Filter by placement (location)
+reviews = await client.profile_comments.list(
+    "profile-id",
+    placement_id="accounts/123/locations/456",
+)
+
+# Get a single review
+review = await client.profile_comments.get("profile-id", "review-id")
+
+# Reply to a review (parent_id is the review id)
+reply = await client.profile_comments.create("profile-id", "review-id", text="Thanks for visiting!")
+
+# Delete your reply
+await client.profile_comments.delete("profile-id", "reply-id")
+```
+
 ### Profile Groups
 
 ```python
@@ -541,7 +569,27 @@ Key types:
 
 Wrap them in `PlatformParams` when passing to `posts.create()`. Telegram needs a `chat_id` per post — list available channels with `client.profiles.placements(profile_id)`.
 
-Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram.
+Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram, google_business.
+
+#### Google Business
+
+Google Business posts use the `google_business` key on `PlatformParams` (passed as a plain dict). The location resource path returned by `client.profiles.placements()` is the `location_id`. Supported formats: `standard`, `event`, `offer`. CTA actions: `LEARN_MORE`, `BOOK`, `ORDER`, `SHOP`, `SIGN_UP`, `CALL`. Media is limited to one image (≤5 MB).
+
+```python
+await client.posts.create(
+    "Now open weekends!",
+    ["gbp-profile-id"],
+    media=["https://example.com/store.jpg"],
+    platforms={
+        "google_business": {
+            "format": "standard",
+            "location_id": "accounts/123/locations/456",
+            "cta_action_type": "LEARN_MORE",
+            "cta_url": "https://example.com",
+        },
+    },
+)
+```
 
 ## Development
 

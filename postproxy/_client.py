@@ -43,6 +43,7 @@ class PostProxy:
         from .resources.webhooks import WebhooksResource
         from .resources.queues import QueuesResource
         from .resources.comments import CommentsResource
+        from .resources.profile_comments import ProfileCommentsResource
 
         self.posts = PostsResource(self)
         self.profiles = ProfilesResource(self)
@@ -50,6 +51,7 @@ class PostProxy:
         self.webhooks = WebhooksResource(self)
         self.queues = QueuesResource(self)
         self.comments = CommentsResource(self)
+        self.profile_comments = ProfileCommentsResource(self)
 
     async def _request(
         self,
