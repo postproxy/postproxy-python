@@ -2,7 +2,7 @@ from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
 
-VERSION = "1.9.0"
+VERSION = "1.10.0"
 
 Platform = Literal[
     "facebook",
@@ -57,6 +57,16 @@ YouTubePrivacy = Literal["public", "unlisted", "private"]
 
 TelegramParseMode = Literal["HTML", "MarkdownV2"]
 
+MessageDirection = Literal["inbound", "outbound"]
+
+MessageStatus = Literal[
+    "pending",
+    "published",
+    "failed_waiting_for_retry",
+    "failed",
+    "received",
+]
+
 WebhookEventType = Literal[
     "post.processed",
     "post.imported",
@@ -69,6 +79,16 @@ WebhookEventType = Literal[
     "profile.stats",
     "media.failed",
     "comment.created",
+    "profile_comment.created",
+    "message.received",
+    "message.sent",
+    "message.delivered",
+    "message.read",
+    "message.edited",
+    "message.deleted",
+    "message.failed_waiting_for_retry",
+    "message.failed",
+    "reaction.received",
 ]
 
 WEBHOOK_EVENT_TYPES: tuple[str, ...] = get_args(WebhookEventType)

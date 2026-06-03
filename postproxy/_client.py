@@ -44,6 +44,8 @@ class PostProxy:
         from .resources.queues import QueuesResource
         from .resources.comments import CommentsResource
         from .resources.profile_comments import ProfileCommentsResource
+        from .resources.chats import ChatsResource
+        from .resources.messages import MessagesResource
 
         self.posts = PostsResource(self)
         self.profiles = ProfilesResource(self)
@@ -52,6 +54,8 @@ class PostProxy:
         self.queues = QueuesResource(self)
         self.comments = CommentsResource(self)
         self.profile_comments = ProfileCommentsResource(self)
+        self.chats = ChatsResource(self)
+        self.messages = MessagesResource(self)
 
     async def _request(
         self,

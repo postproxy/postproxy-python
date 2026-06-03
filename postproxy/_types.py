@@ -11,6 +11,8 @@ from ._constants import (
     InstagramFormat,
     LinkedInFormat,
     MediaStatus,
+    MessageDirection,
+    MessageStatus,
     PinterestFormat,
     Platform,
     PlatformPostStatus,
@@ -181,6 +183,14 @@ class ProfileComment(BaseModel):
     replies: list[ProfileComment] = []
 
 
+class Attachment(BaseModel):
+    id: str
+    type: str
+    url: str | None = None
+    status: MediaStatus
+    external_id: str | None = None
+
+
 class Comment(BaseModel):
     id: str
     external_id: str | None = None
@@ -189,14 +199,64 @@ class Comment(BaseModel):
     author_username: str | None = None
     author_avatar_url: str | None = None
     author_external_id: str | None = None
+    metadata: dict | None = None
     parent_external_id: str | None = None
     like_count: int = 0
     is_hidden: bool = False
     permalink: str | None = None
     platform_data: dict | None = None
+    attachments: list[Attachment] = []
     posted_at: datetime | None = None
     created_at: datetime
     replies: list[Comment] = []
+
+
+class Reaction(BaseModel):
+    sender_external_id: str
+    emoji: str | None = None
+    reaction: str | None = None
+    at: datetime | None = None
+
+
+class Chat(BaseModel):
+    id: str
+    profile_id: str
+    platform: Platform
+    participant_external_id: str
+    participant_username: str | None = None
+    participant_name: str | None = None
+    participant_avatar_url: str | None = None
+    external_conversation_id: str | None = None
+    last_inbound_at: datetime | None = None
+    last_outbound_at: datetime | None = None
+    last_message_at: datetime | None = None
+    metadata: dict | None = None
+    archived: bool | None = None
+    created_at: datetime
+
+
+class Message(BaseModel):
+    id: str
+    chat_id: str
+    external_id: str | None = None
+    direction: MessageDirection
+    body: str | None = None
+    status: MessageStatus
+    tag: str | None = None
+    external_comment_id: str | None = None
+    error_message: str | None = None
+    platform_data: dict | None = None
+    external_posted_at: datetime | None = None
+    external_delivered_at: datetime | None = None
+    external_read_at: datetime | None = None
+    external_edited_at: datetime | None = None
+    reply_to_external_id: str | None = None
+    reply_markup: dict | None = None
+    external_deleted_at: datetime | None = None
+    reactions: list[Reaction] = []
+    attachments: list[Attachment] = []
+    is_unsupported: bool = False
+    created_at: datetime
 
 
 # --- Connection models ---
@@ -357,6 +417,35 @@ class CommentCreatedData(BaseModel):
     reply_count: int = 0
     is_hidden: bool = False
     permalink: str | None = None
+    platform_data: dict | None = None
+    posted_at: datetime | None = None
+    created_at: datetime
+
+
+class MessageEventData(BaseModel):
+    message: Message
+
+
+class ReactionEventData(BaseModel):
+    message: Message
+    sender_external_id: str
+    action: Literal["react", "unreact"]
+    reaction: str | None = None
+    emoji: str | None = None
+    occurred_at: datetime | None = None
+
+
+class ProfileCommentCreatedData(BaseModel):
+    id: str
+    profile_id: str
+    platform: Platform
+    placement_id: str | None = None
+    external_id: str | None = None
+    parent_external_id: str | None = None
+    body: str
+    status: str
+    author_username: str | None = None
+    author_avatar_url: str | None = None
     platform_data: dict | None = None
     posted_at: datetime | None = None
     created_at: datetime

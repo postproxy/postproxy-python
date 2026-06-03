@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from .._types import (
     AcceptedResponse,
     Comment,
+    Message,
     PaginatedResponse,
 )
 
@@ -163,3 +164,22 @@ class CommentsResource:
             profile_group_id=profile_group_id,
         )
         return AcceptedResponse.model_validate(data)
+
+    async def private_reply(
+        self,
+        post_id: str,
+        comment_id: str,
+        profile_id: str,
+        text: str,
+        *,
+        profile_group_id: str | None = None,
+    ) -> Message:
+        params: dict[str, Any] = {"profile_id": profile_id}
+        data = await self._client._request(
+            "POST",
+            f"/posts/{post_id}/comments/{comment_id}/private_reply",
+            params=params,
+            json={"text": text},
+            profile_group_id=profile_group_id,
+        )
+        return Message.model_validate(data)

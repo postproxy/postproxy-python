@@ -1,0 +1,71 @@
+"""Examples of managing direct messages (chats & messages) with the PostProxy SDK."""
+
+import asyncio
+import os
+
+from postproxy import PostProxy
+
+API_KEY = os.environ["POSTPROXY_API_KEY"]
+PROFILE_GROUP_ID = os.environ.get("POSTPROXY_PROFILE_GROUP_ID", "")
+
+
+async def main():
+    async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
+        profile_id = "your-profile-id"  # a DM-capable profile (facebook/instagram/telegram/bluesky)
+
+        # List existing chats for a profile
+        chats = await client.chats.list(profile_id, per_page=20)
+        print(f"Total chats: {chats.total}")
+        for chat in chats.data:
+            print(f"  {chat.participant_username or chat.participant_external_id}: {chat.last_message_at}")
+
+        # Find or create a chat with a participant
+        chat = await client.chats.create(
+            profile_id,
+            "igsid_8675309",
+            participant_username="jane_doe",
+        )
+        print(f"Chat: {chat.id} (platform: {chat.platform})")
+
+        # List messages in the chat
+        messages = await client.messages.list(chat.id, direction="inbound")
+        for msg in messages.data:
+            print(f"  [{msg.direction}] {msg.body}")
+            for att in msg.attachments:
+                print(f"    attachment: {att.type} -> {att.url}")
+
+        # Send a text message (within the 24h window)
+        sent = await client.messages.send(chat.id, body="Yes, we ship worldwide!")
+        print(f"Sent message: {sent.id} (status: {sent.status})")
+
+        # Send outside the 24h window with a tag (Facebook/Instagram)
+        await client.messages.send(
+            chat.id, body="Following up on your order.", tag="HUMAN_AGENT"
+        )
+
+        # Send an image by hosted URL
+        await client.messages.send(chat.id, media=["https://cdn.example.com/photo.png"])
+
+        # Send an image from a local file (multipart)
+        # await client.messages.send(chat.id, media_files=["./photo.png"])
+
+        # React / unreact (Facebook & Instagram)
+        await client.messages.react(sent.id, reaction="love", emoji="❤️")
+        await client.messages.unreact(sent.id)
+
+        # Edit an outbound message (Telegram only)
+        # await client.messages.edit(sent.id, body="Updated answer.")
+
+        # Archive / unarchive a chat (Bluesky only)
+        # await client.chats.archive(chat.id)
+        # await client.chats.unarchive(chat.id)
+
+        # Private reply to a comment (Instagram/Facebook) — returns a Message
+        reply = await client.comments.private_reply(
+            "your-post-id", "comment-id", profile_id, "Thanks — DM-ing you the details."
+        )
+        print(f"Private reply queued: {reply.id} (chat: {reply.chat_id})")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

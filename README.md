@@ -336,7 +336,9 @@ is_valid = verify_signature(
 
 Subscribe to any of these events (or pass `["*"]` for all):
 
-`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`.
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`, `profile_comment.created`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`.
+
+The direct-message events (`message.*`) carry a `MessageEventData` (`.message` is a full `Message`); `reaction.received` carries a `ReactionEventData`; `profile_comment.created` carries a `ProfileCommentCreatedData`.
 
 `parse_event_typed` validates the envelope and returns `(envelope, typed_data)`:
 
@@ -347,6 +349,8 @@ from postproxy import (
     ProfileStatsData,
     PlatformPostData,
     CommentCreatedData,
+    MessageEventData,
+    ReactionEventData,
 )
 
 try:
@@ -360,6 +364,12 @@ try:
     elif envelope.type == "comment.created":
         assert isinstance(data, CommentCreatedData)
         print(f"{data.author_username}: {data.body}")
+    elif envelope.type == "message.received":
+        assert isinstance(data, MessageEventData)
+        print(f"DM from {data.message.chat_id}: {data.message.body}")
+    elif envelope.type == "reaction.received":
+        assert isinstance(data, ReactionEventData)
+        print(f"{data.action}: {data.reaction} on {data.message.id}")
 except WebhookParseError as e:
     print("Bad webhook body:", e)
 ```
@@ -397,6 +407,72 @@ await client.comments.unhide("post-id", "comment-id", "profile-id")
 # Like / unlike a comment
 await client.comments.like("post-id", "comment-id", "profile-id")
 await client.comments.unlike("post-id", "comment-id", "profile-id")
+
+# Synced comments may carry media attachments and author metadata
+comment = await client.comments.get("post-id", "comment-id", "profile-id")
+for att in comment.attachments:
+    print(att.type, att.url, att.status)
+if comment.metadata:
+    print(comment.metadata.get("follower_count"))
+```
+
+### Direct Messages
+
+Read and send 1:1 messages on DM-capable profiles (Facebook Messenger, Instagram, Telegram, Bluesky). A conversation is a **Chat**; it holds **Messages**. Outbound sends are processed asynchronously (`status` starts as `pending`).
+
+```python
+# List chats for a profile (paginated, most recent first)
+chats = await client.chats.list("profile-id", per_page=20)
+for chat in chats.data:
+    print(chat.participant_username, chat.last_message_at)
+
+# Find or create a chat with a participant (idempotent)
+chat = await client.chats.create(
+    "profile-id", "igsid_8675309", participant_username="jane_doe"
+)
+
+# Get a single chat
+chat = await client.chats.get(chat.id)
+
+# List messages in a chat (filter by direction/status)
+messages = await client.messages.list(chat.id, direction="inbound")
+for msg in messages.data:
+    print(msg.direction, msg.body, [a.url for a in msg.attachments])
+
+# Send a text message (within the 24h window)
+sent = await client.messages.send(chat.id, body="Yes, we ship worldwide!")
+
+# Send outside the 24h window with a tag (Facebook/Instagram)
+await client.messages.send(chat.id, body="Following up.", tag="HUMAN_AGENT")
+
+# Send media — by hosted URL or local file
+await client.messages.send(chat.id, media=["https://cdn.example.com/photo.png"])
+await client.messages.send(chat.id, media_files=["./photo.png"])
+
+# Telegram: reply threading + inline keyboard
+await client.messages.send(
+    chat.id,
+    body="Pick one:",
+    reply_markup={"inline_keyboard": [[{"text": "Track order", "callback_data": "track:1"}]]},
+)
+
+# Get / edit (Telegram only) a message
+msg = await client.messages.get(sent.id)
+await client.messages.edit(sent.id, body="Updated answer.")
+
+# React / unreact (Facebook & Instagram)
+await client.messages.react(sent.id, reaction="love", emoji="❤️")
+await client.messages.unreact(sent.id)
+
+# Archive / unarchive a chat (Bluesky only)
+await client.chats.archive(chat.id)
+await client.chats.unarchive(chat.id)
+
+# Private reply to a comment's author (Instagram/Facebook) — returns a Message
+reply = await client.comments.private_reply(
+    "post-id", "comment-id", "profile-id", "DM-ing you the details."
+)
+print(reply.chat_id, reply.status)
 ```
 
 ### Profile comments (Google Business reviews)

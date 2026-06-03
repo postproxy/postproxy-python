@@ -7,16 +7,33 @@ import pytest
 from postproxy import (
     CommentCreatedData,
     MediaFailedData,
+    MessageEventData,
     PlatformPostData,
     PlatformPostInsightsData,
     PostImportedData,
     PostProcessedData,
+    ProfileCommentCreatedData,
     ProfileEventData,
     ProfileStatsData,
+    ReactionEventData,
     WebhookParseError,
     parse_event,
     parse_event_typed,
 )
+
+
+def _message(**overrides):
+    base = {
+        "id": "msg_1",
+        "chat_id": "chat_1",
+        "external_id": "mid.1",
+        "direction": "inbound",
+        "body": "hi",
+        "status": "received",
+        "created_at": "2026-06-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
 
 
 def envelope(type_: str, data: dict) -> dict:
@@ -166,6 +183,62 @@ def test_parse_comment_created():
     _, data = parse_event_typed(json.dumps(body))
     assert isinstance(data, CommentCreatedData)
     assert data.author_name == "Jane"
+
+
+@pytest.mark.parametrize("type_", [
+    "message.received",
+    "message.sent",
+    "message.delivered",
+    "message.read",
+    "message.edited",
+    "message.deleted",
+    "message.failed_waiting_for_retry",
+    "message.failed",
+])
+def test_parse_message_event(type_):
+    body = envelope(type_, {"message": _message()})
+    e, data = parse_event_typed(json.dumps(body))
+    assert e.type == type_
+    assert isinstance(data, MessageEventData)
+    assert data.message.id == "msg_1"
+
+
+def test_parse_reaction_received():
+    body = envelope("reaction.received", {
+        "message": _message(reactions=[
+            {"sender_external_id": "psid_123", "emoji": "❤️", "reaction": "love", "at": "2026-06-01T15:02:00Z"}
+        ]),
+        "sender_external_id": "psid_123",
+        "action": "react",
+        "reaction": "love",
+        "emoji": "❤️",
+        "occurred_at": "2026-06-01T15:02:00Z",
+    })
+    _, data = parse_event_typed(json.dumps(body))
+    assert isinstance(data, ReactionEventData)
+    assert data.action == "react"
+    assert data.message.reactions[0].reaction == "love"
+
+
+def test_parse_profile_comment_created():
+    body = envelope("profile_comment.created", {
+        "id": "abc123",
+        "profile_id": "prof123",
+        "platform": "google_business",
+        "placement_id": "accounts/1/locations/2",
+        "external_id": "accounts/1/locations/2/reviews/A",
+        "parent_external_id": None,
+        "body": "Great coffee!",
+        "status": "synced",
+        "author_username": "Jane D.",
+        "author_avatar_url": None,
+        "platform_data": {"star_rating": 5},
+        "posted_at": "2026-05-10T11:55:00Z",
+        "created_at": "2026-05-13T18:00:00Z",
+    })
+    _, data = parse_event_typed(json.dumps(body))
+    assert isinstance(data, ProfileCommentCreatedData)
+    assert data.platform_data["star_rating"] == 5
 
 
 def test_unknown_event_type_raises():

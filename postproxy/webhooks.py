@@ -7,12 +7,15 @@ from ._constants import WEBHOOK_EVENT_TYPES
 from ._types import (
     CommentCreatedData,
     MediaFailedData,
+    MessageEventData,
     PlatformPostData,
     PlatformPostInsightsData,
     PostImportedData,
     PostProcessedData,
+    ProfileCommentCreatedData,
     ProfileEventData,
     ProfileStatsData,
+    ReactionEventData,
     WebhookEvent,
 )
 
@@ -42,6 +45,16 @@ _EVENT_DATA_MODELS: dict[str, type] = {
     "profile.stats": ProfileStatsData,
     "media.failed": MediaFailedData,
     "comment.created": CommentCreatedData,
+    "profile_comment.created": ProfileCommentCreatedData,
+    "message.received": MessageEventData,
+    "message.sent": MessageEventData,
+    "message.delivered": MessageEventData,
+    "message.read": MessageEventData,
+    "message.edited": MessageEventData,
+    "message.deleted": MessageEventData,
+    "message.failed_waiting_for_retry": MessageEventData,
+    "message.failed": MessageEventData,
+    "reaction.received": ReactionEventData,
 }
 
 

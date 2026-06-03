@@ -92,6 +92,29 @@ async def test_list_comments_with_pagination(client, transport: MockTransport):
 
 
 @pytest.mark.asyncio
+async def test_comment_attachments_and_metadata(client, transport: MockTransport):
+    comment = {
+        **MOCK_COMMENT,
+        "metadata": {"is_verified_user": True, "follower_count": 482},
+        "attachments": [
+            {
+                "id": "att_xyz321",
+                "type": "image",
+                "url": "https://storage.postproxy.dev/x",
+                "status": "processed",
+                "external_id": "529233764205652",
+            }
+        ],
+    }
+    transport.add("GET", "/api/posts/post1/comments/cmt_abc123", 200, comment)
+    result = await client.comments.get("post1", "cmt_abc123", "prof1")
+    assert result.metadata["follower_count"] == 482
+    assert len(result.attachments) == 1
+    assert result.attachments[0].type == "image"
+    assert result.attachments[0].status == "processed"
+
+
+@pytest.mark.asyncio
 async def test_get_comment(client, transport: MockTransport):
     transport.add("GET", "/api/posts/post1/comments/cmt_abc123", 200, MOCK_COMMENT)
     comment = await client.comments.get("post1", "cmt_abc123", "prof1")

@@ -20,4 +20,4 @@ async def test_user_agent_header(transport: MockTransport):
 
 
 def test_version_constant():
-    assert VERSION == "1.8.0"
+    assert VERSION == "1.10.0"
