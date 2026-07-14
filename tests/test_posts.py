@@ -89,6 +89,31 @@ async def test_create_post(client, transport: MockTransport):
 
 
 @pytest.mark.asyncio
+async def test_create_twitter_poll_post(client, transport: MockTransport):
+    from postproxy import TwitterParams
+
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "Which framework?",
+        ["profile-1"],
+        platforms=PlatformParams(
+            twitter=TwitterParams(
+                format="poll",
+                poll_options=["Rails", "Django", "Laravel"],
+                poll_duration_minutes=1440,
+            )
+        ),
+    )
+    import json
+    body = json.loads(transport.requests[0].content)
+    assert body["platforms"]["twitter"] == {
+        "format": "poll",
+        "poll_options": ["Rails", "Django", "Laravel"],
+        "poll_duration_minutes": 1440,
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_post_with_media(client, transport: MockTransport):
     transport.add("POST", "/api/posts", 201, POST_DATA)
     await client.posts.create(

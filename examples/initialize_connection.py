@@ -32,6 +32,18 @@ async def main():
         )
         print(f"\nRedirect the user to: {conn.url}")
 
+        # After connecting, list a profile's placements (Pages, channels, locations)
+        placements = (await client.profiles.placements("profile-id")).data
+        print("Placements:", [(p.id, p.name) for p in placements])
+
+        # Move one placement to a different profile group
+        if placements:
+            await client.profiles.assign_placement_to_group(
+                "profile-id",
+                placement_id=placements[0].id,
+                target_profile_group_id="other-group-id",
+            )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

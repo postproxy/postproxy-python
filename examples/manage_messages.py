@@ -66,6 +66,18 @@ async def main():
         )
         print(f"Private reply queued: {reply.id} (chat: {reply.chat_id})")
 
+        # Ice breakers (Instagram only): FAQ prompts shown when a user opens a chat
+        await client.profiles.set_ice_breakers(
+            profile_id,
+            [
+                {"question": "What services do you offer?", "payload": "services"},
+                {"question": "What are your hours?", "payload": "hours"},
+            ],
+        )
+        result = await client.profiles.ice_breakers(profile_id)
+        print("Ice breakers:", [ib.question for ib in result.ice_breakers])
+        # await client.profiles.delete_ice_breakers(profile_id)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

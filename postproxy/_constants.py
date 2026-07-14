@@ -2,7 +2,7 @@ from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
 
-VERSION = "1.10.0"
+VERSION = "1.11.0"
 
 Platform = Literal[
     "facebook",
@@ -40,7 +40,7 @@ PinterestFormat = Literal["pin"]
 
 ThreadsFormat = Literal["post"]
 
-TwitterFormat = Literal["post"]
+TwitterFormat = Literal["post", "poll"]
 
 BlueskyFormat = Literal["post"]
 

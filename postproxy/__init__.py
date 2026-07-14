@@ -33,6 +33,7 @@ from ._exceptions import (
 )
 from ._types import (
     AcceptedResponse,
+    AssignedPlacement,
     Attachment,
     BlueskyConnectionResponse,
     BlueskyParams,
@@ -46,6 +47,8 @@ from ._types import (
     ErrorDetails,
     FacebookParams,
     Insights,
+    IceBreaker,
+    IceBreakersResponse,
     InstagramParams,
     LinkedInParams,
     ListResponse,
@@ -138,6 +141,7 @@ __all__ = [
     "ValidationError",
     # Types
     "AcceptedResponse",
+    "AssignedPlacement",
     "Attachment",
     "Chat",
     "Comment",
@@ -158,6 +162,8 @@ __all__ = [
     "ErrorDetails",
     "FacebookParams",
     "Insights",
+    "IceBreaker",
+    "IceBreakersResponse",
     "InstagramParams",
     "LinkedInParams",
     "ListResponse",

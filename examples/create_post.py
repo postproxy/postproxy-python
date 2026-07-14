@@ -182,6 +182,20 @@ async def thread_post():
         for child in post.thread:
             print(f"  - {child.id}: {child.body}")
 
+        # Twitter poll: 2-4 options (max 25 chars each), 5-10080 minutes
+        poll_post = await client.posts.create(
+            "Which framework?",
+            ["twitter"],
+            platforms=PlatformParams(
+                twitter=TwitterParams(
+                    format="poll",
+                    poll_options=["Rails", "Django", "Laravel", "Other"],
+                    poll_duration_minutes=1440,
+                )
+            ),
+        )
+        print(f"Created poll post {poll_post.id}")
+
 
 if __name__ == "__main__":
     asyncio.run(simple_post())

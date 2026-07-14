@@ -48,6 +48,23 @@ class Profile(BaseModel):
 class Placement(BaseModel):
     id: str
     name: str
+    metadata: dict[str, Any] | None = None
+
+
+class AssignedPlacement(BaseModel):
+    id: str
+    name: str
+    metadata: dict[str, Any] | None = None
+    profile_group_id: str
+
+
+class IceBreaker(BaseModel, extra="allow"):
+    question: str
+    payload: str
+
+
+class IceBreakersResponse(BaseModel):
+    ice_breakers: list[IceBreaker] = []
 
 
 class ProfileGroup(BaseModel):
@@ -522,6 +539,10 @@ class ThreadsParams(BaseModel):
 
 class TwitterParams(BaseModel):
     format: TwitterFormat | None = None
+    # Required when format is "poll": 2-4 options (max 25 chars each),
+    # duration 5 to 10080 minutes (7 days).
+    poll_options: list[str] | None = None
+    poll_duration_minutes: int | None = None
 
 
 class BlueskyParams(BaseModel):

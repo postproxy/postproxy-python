@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .._types import (
+    AssignedPlacement,
+    IceBreaker,
+    IceBreakersResponse,
     ListResponse,
     Placement,
     Profile,
@@ -74,6 +77,65 @@ class ProfilesResource:
             profile_group_id=profile_group_id,
         )
         return ProfileStatsResponse.model_validate(data)
+
+    async def assign_placement_to_group(
+        self,
+        id: str,
+        *,
+        placement_id: str,
+        target_profile_group_id: str,
+        profile_group_id: str | None = None,
+    ) -> AssignedPlacement:
+        data = await self._client._request(
+            "PATCH",
+            f"/profiles/{id}/assign_placement_to_group",
+            json={
+                "placement_id": placement_id,
+                "target_profile_group_id": target_profile_group_id,
+            },
+            profile_group_id=profile_group_id,
+        )
+        return AssignedPlacement.model_validate(data)
+
+    async def ice_breakers(
+        self, id: str, *, profile_group_id: str | None = None
+    ) -> IceBreakersResponse:
+        """List DM ice breakers. Supported for Instagram profiles only."""
+        data = await self._client._request(
+            "GET",
+            f"/profiles/{id}/ice_breakers",
+            profile_group_id=profile_group_id,
+        )
+        return IceBreakersResponse.model_validate(data)
+
+    async def set_ice_breakers(
+        self,
+        id: str,
+        ice_breakers: list[IceBreaker | dict[str, Any]],
+        *,
+        profile_group_id: str | None = None,
+    ) -> SuccessResponse:
+        items = [
+            ib.model_dump() if isinstance(ib, IceBreaker) else ib
+            for ib in ice_breakers
+        ]
+        data = await self._client._request(
+            "POST",
+            f"/profiles/{id}/ice_breakers",
+            json={"ice_breakers": items},
+            profile_group_id=profile_group_id,
+        )
+        return SuccessResponse.model_validate(data)
+
+    async def delete_ice_breakers(
+        self, id: str, *, profile_group_id: str | None = None
+    ) -> SuccessResponse:
+        data = await self._client._request(
+            "DELETE",
+            f"/profiles/{id}/ice_breakers",
+            profile_group_id=profile_group_id,
+        )
+        return SuccessResponse.model_validate(data)
 
     async def delete(
         self, id: str, *, profile_group_id: str | None = None
