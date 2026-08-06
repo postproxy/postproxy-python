@@ -80,6 +80,7 @@ class PostsResource:
         queue_id: str | None = None,
         queue_priority: str | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Post:
         scheduled_at_str: str | None = None
         if scheduled_at is not None:
@@ -142,6 +143,7 @@ class PostsResource:
                 data=form_data,
                 files=files,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         else:
             # JSON request for URL-based media
@@ -174,6 +176,7 @@ class PostsResource:
                 "/posts",
                 json=json_body,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         return Post.model_validate(data)
 
@@ -192,6 +195,7 @@ class PostsResource:
         queue_id: str | None = None,
         queue_priority: str | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Post:
         scheduled_at_str: str | None = None
         if scheduled_at is not None:
@@ -255,6 +259,7 @@ class PostsResource:
                 data=form_data,
                 files=files,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         else:
             json_body: dict[str, Any] = {}
@@ -289,16 +294,22 @@ class PostsResource:
                 f"/posts/{id}",
                 json=json_body,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         return Post.model_validate(data)
 
     async def publish_draft(
-        self, id: str, *, profile_group_id: str | None = None
+        self,
+        id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Post:
         data = await self._client._request(
             "POST",
             f"/posts/{id}/publish",
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Post.model_validate(data)
 
@@ -341,6 +352,7 @@ class PostsResource:
         *,
         delete_on_platform: bool | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> DeleteResponse:
         params: dict[str, Any] = {}
         if delete_on_platform is not None:
@@ -350,6 +362,7 @@ class PostsResource:
             f"/posts/{id}",
             params=params or None,
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return DeleteResponse.model_validate(data)
 
@@ -361,6 +374,7 @@ class PostsResource:
         profile_id: str | None = None,
         network: str | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> DeleteOnPlatformResponse:
         json_body: dict[str, Any] = {}
         if post_profile_id is not None:
@@ -374,5 +388,6 @@ class PostsResource:
             f"/posts/{id}/delete_on_platform",
             json=json_body or None,
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return DeleteOnPlatformResponse.model_validate(data)

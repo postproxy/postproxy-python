@@ -56,6 +56,36 @@ async with PostProxy("your-api-key") as client:
 await client.close()
 ```
 
+#### Idempotency
+
+Every write method (`POST`/`PUT`/`PATCH`/`DELETE`) accepts an `idempotency_key`, sent as
+the `Idempotency-Key` header. If the connection drops before you see the response, retry
+with the same key and you get the original response back instead of a second post:
+
+```python
+import uuid
+
+key = str(uuid.uuid4())
+post = await client.posts.create("Hello", ["profile-id"], idempotency_key=key)
+
+# Retrying the same call with the same key replays the original response.
+```
+
+Generate a fresh key per logical operation — a UUID is ideal. Keys are scoped to your
+account and may be up to 255 characters. The SDK never generates keys or retries for you.
+
+| Situation | Result |
+|---|---|
+| First request with the key | Runs normally |
+| Retry after a success | Original status and body replayed |
+| Retry while the first is still running | `ConflictError` (409) — wait and retry |
+| Same key, different request body | `ValidationError` (422) |
+| Retry after an error response | Runs normally — errors are not replayed |
+
+Only successful (`2xx`) responses are stored, so a request that failed validation or hit a
+quota leaves the key free — fix the payload and retry with the same key. Stored responses
+are kept for **24 hours**. Requests without a key are unaffected.
+
 ### Posts
 
 ```python
@@ -306,6 +336,68 @@ result = await client.profiles.delete("profile-id")
 print(result.success)  # True
 ```
 
+#### Post syncs & backfill
+
+PostProxy mirrors posts published natively on a platform into your account. Every one of
+those pulls is recorded as a **post sync**: the one fired when the profile connects, the
+recurring poll, and any backfill you start.
+
+```python
+# Start a backfill — walks the feed backwards from the newest post in batches
+# of 25 until it reaches `from_` or the platform stops returning posts.
+sync = await client.profiles.backfill_posts("profile-id", from_="2025-01-01")
+print(sync.id, sync.status)  # "sync456def" "pending"
+
+# Poll it to completion — finished when status is "completed" or "failed"
+run = await client.profiles.post_sync("profile-id", sync.id)
+print(run.posts_imported, "of", run.posts_seen, "back to", run.oldest_posted_at)
+
+# List recent runs (kept for 30 days), newest first
+runs = await client.profiles.post_syncs(
+    "profile-id",
+    trigger="backfill",   # connect | scheduled | backfill
+    status="completed",   # pending | running | completed | failed
+    per_page=25,
+)
+```
+
+| `PostSync` field | Description |
+|---|---|
+| `id` | Sync identifier |
+| `profile_id` | Profile this run belongs to |
+| `kind` | Always `posts` today |
+| `trigger` | `connect`, `scheduled`, or `backfill` |
+| `status` | `pending`, `running`, `completed`, or `failed` |
+| `started_at` / `completed_at` | Timestamps, `None` until set |
+| `posts_seen` | Posts the platform returned across the run |
+| `posts_imported` | Posts that were **new** and got created |
+| `backfill_from` | The date floor requested; `None` for `connect`/`scheduled` |
+| `oldest_posted_at` | Publish date of the oldest post the run reached |
+| `error` | Platform error message when `status` is `failed` |
+| `created_at` | Timestamp |
+
+**How far back a backfill reaches depends on the platform's API**, not on PostProxy: where
+history is pageable we follow it, otherwise the run ends early with whatever it got and
+still reports `status="completed"`.
+
+Only one backfill runs per profile at a time — starting a second raises `ConflictError`
+carrying the running one's id:
+
+```python
+from postproxy import ConflictError
+
+try:
+    await client.profiles.backfill_posts("profile-id", from_="2025-01-01")
+except ConflictError as e:
+    running_id = e.response["profile_sync_id"]
+    # Poll the run that's already going.
+```
+
+Posts you already have are skipped, so overlapping backfills are safe. Imported posts
+behave exactly like ones the poll picks up (`source="imported"`, `post.imported` webhook),
+but a backfill's follow-up work is queued at a lower priority so a deep run can't slow
+down publishing.
+
 ### Webhooks
 
 ```python
@@ -409,6 +501,13 @@ for comment in comments.data:
 # List with pagination
 comments = await client.comments.list("post-id", "profile-id", page=2, per_page=10)
 
+# Filter by when PostProxy received the comment (created_at, not posted_at).
+# A bare date means that date's start of day. Applies to top-level comments —
+# one in range brings its full replies list with it.
+recent = await client.comments.list(
+    "post-id", "profile-id", from_="2026-03-25", to="2026-03-26T12:00:00Z"
+)
+
 # Get a single comment
 comment = await client.comments.get("post-id", "comment-id", "profile-id")
 
@@ -437,6 +536,38 @@ for att in comment.attachments:
 if comment.metadata:
     print(comment.metadata.get("follower_count"))
 ```
+
+#### Comments across posts
+
+`comments.list_all()` returns comments spanning every post in the profile group in one
+request — the comments counterpart to `posts.stats()`. Every filter is optional.
+
+**This list is flat.** Unlike the per-post list, replies are not nested: every comment,
+top-level or reply, is its own entry linked to its parent by `parent_external_id`, so
+`total` counts every comment and paging is exact.
+
+```python
+all_comments = await client.comments.list_all(
+    profiles=["instagram", "prof-abc"],  # profile IDs or network names, mixed
+    post_ids=["post-1", "post-2"],       # omit for every post in scope
+    from_="2026-03-25",
+    per_page=50,                         # max 100
+)
+
+for c in all_comments.data:
+    # Each entry says where it came from, so you can act on it with the
+    # post-scoped methods above.
+    print(c.platform, c.post_id, c.profile_id, c.body)
+    if c.parent_external_id:
+        print("  ↳ reply to", c.parent_external_id)
+
+# Reply to one of them
+first = all_comments.data[0]
+await client.comments.create(first.post_id, first.profile_id, "Thanks!", parent_id=first.id)
+```
+
+Unknown or out-of-scope IDs in `post_ids` and `profiles` are ignored rather than erroring.
+Results are ordered newest first by receipt time.
 
 ### Direct Messages
 
@@ -496,6 +627,23 @@ reply = await client.comments.private_reply(
 )
 print(reply.chat_id, reply.status)
 ```
+
+#### The `HUMAN_AGENT` tag
+
+`HUMAN_AGENT` is Meta's Human Agent message tag, approved for PostProxy on **both
+Facebook and Instagram**. It extends the reply window from 24 hours to **7 days** after the
+participant's last inbound message, and allows free-form content (no template).
+
+PostProxy does not enforce the 7-day ceiling — past it, Meta rejects the send and the
+message lands in `status="failed"` with the platform error in `error_details`. The tag is
+ignored on Telegram, and Bluesky has no messaging window at all.
+
+> ⚠️ **Use it only for a human replying to the participant's own inquiry.** Sending
+> promotional content, offers, or automated re-engagement under this tag violates Meta's
+> policy and can get that Page or Instagram account's messaging capability suspended —
+> you lose the ability to send DMs from it. The penalty is scoped to the offending
+> account, not to your other profiles.
+
 
 ### Profile comments (Google Business reviews)
 
@@ -594,6 +742,21 @@ bsky = await client.profiles.get_profile_stats("prof_bsky_001")
 print(bsky.data.records[-1].stats.get("followersCount"))
 ```
 
+Every stats record (post stats and profile stats alike) carries `raw_stats` alongside the
+normalized `stats`, exposing each metric under its **original platform name**:
+
+```python
+stats = await client.posts.stats(["post-id"])
+record = stats.data["post-id"].platforms[0].records[0]
+
+print(record.stats["impressions"])            # normalized
+print(record.raw_stats["views"])              # Instagram's own name
+print(record.raw_stats["impression_count"])   # Twitter/X's own name
+```
+
+LinkedIn post stats now normalize `likes`, `comments`, `shares`, and `clicks` alongside
+`impressions` — previously only `impressions` was normalized.
+
 ## Error handling
 
 All errors extend `PostProxyError`, which includes the HTTP status code and raw response body:
@@ -604,6 +767,7 @@ from postproxy import (
     AuthenticationError,   # 401
     BadRequestError,       # 400
     NotFoundError,         # 404
+    ConflictError,         # 409
     ValidationError,       # 422
 )
 
@@ -615,6 +779,15 @@ except NotFoundError as e:
 except PostProxyError as e:
     print(f"API error {e.status_code}: {e}")
 ```
+
+| Status | Error | Raised for |
+|---|---|---|
+| 400 | `BadRequestError` | Missing required parameters |
+| 401 | `AuthenticationError` | Invalid, missing, or insufficient API key permissions |
+| 404 | `NotFoundError` | Resource does not exist or is not accessible |
+| 409 | `ConflictError` | Duplicate submission (`response["duplicate_post_id"]`), a backfill already running (`response["profile_sync_id"]`), or an in-flight `Idempotency-Key` |
+| 422 | `ValidationError` | Validation failed |
+| 429 | `PostProxyError` | Posting rate limit reached |
 
 ## Types
 
@@ -641,12 +814,14 @@ Key types:
 | `StatsResponse` | data (dict keyed by post id) |
 | `PostStats` | platforms |
 | `PlatformStats` | profile_id, platform, records |
-| `StatsRecord` | stats (dict), recorded_at |
+| `StatsRecord` | stats (dict), raw_stats (dict), recorded_at |
 | `Queue` | id, name, description, timezone, enabled, jitter, profile_group_id, timeslots, posts_count |
 | `Timeslot` | id, day, time |
 | `NextSlotResponse` | next_slot |
 | `ListResponse[T]` | data |
 | `Comment` | id, external_id, body, status, author_username, author_avatar_url, author_external_id, parent_external_id, like_count, is_hidden, permalink, platform_data, posted_at, created_at, replies |
+| `BulkComment` | Every `Comment` field except `replies`, plus post_id, profile_id, platform — returned by `comments.list_all()` |
+| `PostSync` | id, profile_id, kind, trigger, status, started_at, completed_at, posts_seen, posts_imported, backfill_from, oldest_posted_at, error, created_at |
 | `AcceptedResponse` | accepted |
 | `PaginatedResponse[T]` | total, page, per_page, data |
 
@@ -655,7 +830,8 @@ Key types:
 | Model | Platform |
 |---|---|
 | `FacebookParams` | format (`post`, `story`), first_comment, page_id |
-| `InstagramParams` | format (`post`, `reel`, `story`), first_comment, collaborators, cover_url, audio_name, trial_strategy, thumb_offset |
+| `InstagramParams` | format (`post`, `reel`, `story`), first_comment, collaborators, cover_url, audio_name, trial_strategy, thumb_offset, user_tags |
+| `InstagramUserTag` | username, x, y, media_index |
 | `TikTokParams` | format (`video`, `image`), privacy_status, photo_cover_index, auto_add_music, made_with_ai, disable_comment, disable_duet, disable_stitch, brand_content_toggle, brand_organic_toggle |
 | `LinkedInParams` | format (`post`), organization_id |
 | `YouTubeParams` | format (`post`), title, privacy_status, cover_url, made_for_kids, tags, category_id, contains_synthetic_media |
@@ -664,6 +840,45 @@ Key types:
 | `TwitterParams` | format (`post`, `poll`), poll_options (2-4 choices, max 25 chars each; required for `poll`), poll_duration_minutes (5-10080; required for `poll`) |
 | `BlueskyParams` | format (`post`) |
 | `TelegramParams` | format (`post`), chat_id (required), parse_mode (`HTML`, `MarkdownV2`), disable_link_preview, disable_notification |
+
+#### Instagram user tags
+
+Tag public Instagram accounts in a post — feed post, reel, or story:
+
+```python
+from postproxy import InstagramParams, InstagramUserTag, PlatformParams
+
+await client.posts.create(
+    "Shot on location",
+    ["ig-profile-id"],
+    media=[
+        "https://example.com/1.jpg",
+        "https://example.com/2.jpg",
+        "https://example.com/3.mp4",
+    ],
+    platforms=PlatformParams(
+        instagram=InstagramParams(
+            format="post",
+            user_tags=[
+                InstagramUserTag(username="natgeo", x=0.5, y=0.4),               # slide 0
+                InstagramUserTag(username="nasa", x=0.2, y=0.8, media_index=1),  # slide 1
+                InstagramUserTag(username="spacex", media_index=2),              # video — username only
+            ],
+        )
+    ),
+)
+```
+
+- **Images require `x` and `y`** — floats `0.0`–`1.0` measured from the top-left corner.
+- **Reels and video slides** are tagged by username only; coordinates are ignored and dropped.
+- **Stories** accept coordinates but don't need them.
+- `media_index` picks the carousel slide (0-based, defaults to `0`, video slides included).
+- A leading `@` on a username is stripped for you.
+
+Coordinates outside `0.0`–`1.0`, a `media_index` past the last media item, or an image tag
+missing `x`/`y` are rejected with a `ValidationError` naming the offending entry. Accounts
+that are private or have tagging turned off are silently skipped by Instagram at publish
+time.
 
 Wrap them in `PlatformParams` when passing to `posts.create()`. Telegram needs a `chat_id` per post — list available channels with `client.profiles.placements(profile_id)`.
 

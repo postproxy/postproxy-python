@@ -17,6 +17,8 @@ from ._constants import (
     Platform,
     PlatformPostStatus,
     PostStatus,
+    PostSyncStatus,
+    PostSyncTrigger,
     ProfileStatus,
     TelegramFormat,
     TelegramParseMode,
@@ -228,6 +230,53 @@ class Comment(BaseModel):
     replies: list[Comment] = []
 
 
+class BulkComment(BaseModel):
+    """A comment from :meth:`CommentsResource.list_all`.
+
+    Flat: replies are their own entries linked to their parent by
+    ``parent_external_id`` rather than nested under ``replies``.
+    """
+
+    post_id: str
+    profile_id: str
+    platform: Platform
+    id: str
+    external_id: str | None = None
+    body: str
+    status: str
+    author_username: str | None = None
+    author_avatar_url: str | None = None
+    author_external_id: str | None = None
+    metadata: dict | None = None
+    parent_external_id: str | None = None
+    like_count: int = 0
+    is_hidden: bool = False
+    permalink: str | None = None
+    platform_data: dict | None = None
+    attachments: list[Attachment] = []
+    posted_at: datetime | None = None
+    created_at: datetime
+
+
+class PostSync(BaseModel):
+    id: str
+    profile_id: str
+    kind: str
+    trigger: PostSyncTrigger
+    status: PostSyncStatus
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    posts_seen: int = 0
+    # Posts that were new and got created — lower than `posts_seen` whenever
+    # the run re-read posts you already have.
+    posts_imported: int = 0
+    backfill_from: datetime | None = None
+    # Publish date of the oldest post the run reached.
+    oldest_posted_at: datetime | None = None
+    error: str | None = None
+    created_at: datetime
+
+
 class Reaction(BaseModel):
     sender_external_id: str
     emoji: str | None = None
@@ -311,6 +360,9 @@ ConnectionResponse = OAuthConnectionResponse
 
 class StatsRecord(BaseModel):
     stats: dict[str, Any]
+    # Every metric under its original platform name, e.g. `views` for Instagram
+    # or `impression_count` for Twitter/X.
+    raw_stats: dict[str, Any] = {}
     recorded_at: datetime
 
 
@@ -485,6 +537,20 @@ class FacebookParams(BaseModel):
     page_id: str | None = None
 
 
+class InstagramUserTag(BaseModel):
+    """An Instagram account to tag in a post.
+
+    Images require ``x`` and ``y``. Reels and video slides are tagged by
+    username only — Instagram ignores coordinates there.
+    """
+
+    username: str
+    x: float | None = None
+    y: float | None = None
+    # Which media item to tag, 0-based. Defaults to 0.
+    media_index: int | None = None
+
+
 class InstagramParams(BaseModel):
     format: InstagramFormat | None = None
     first_comment: str | None = None
@@ -493,6 +559,7 @@ class InstagramParams(BaseModel):
     audio_name: str | None = None
     trial_strategy: bool | None = None
     thumb_offset: int | None = None
+    user_tags: list[InstagramUserTag] | None = None
 
 
 class TikTokParams(BaseModel):

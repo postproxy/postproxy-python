@@ -62,12 +62,14 @@ class ProfileCommentsResource:
         text: str,
         *,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> ProfileComment:
         data = await self._client._request(
             "POST",
             f"/profiles/{profile_id}/comments",
             json={"parent_id": parent_id, "text": text},
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return ProfileComment.model_validate(data)
 
@@ -77,10 +79,12 @@ class ProfileCommentsResource:
         comment_id: str,
         *,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> AcceptedResponse:
         data = await self._client._request(
             "DELETE",
             f"/profiles/{profile_id}/comments/{comment_id}",
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return AcceptedResponse.model_validate(data)

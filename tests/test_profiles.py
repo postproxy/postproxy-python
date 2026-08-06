@@ -6,10 +6,13 @@ import json
 
 from postproxy import (
     AssignedPlacement,
+    ConflictError,
     IceBreaker,
     IceBreakersResponse,
     ListResponse,
+    PaginatedResponse,
     Placement,
+    PostSync,
     Profile,
     SuccessResponse,
 )
@@ -130,3 +133,104 @@ async def test_delete_profile(client, transport: MockTransport):
     result = await client.profiles.delete("prof-1")
     assert isinstance(result, SuccessResponse)
     assert result.success is True
+
+
+POST_SYNC_DATA = {
+    "id": "sync456def",
+    "profile_id": "prof-1",
+    "kind": "posts",
+    "trigger": "backfill",
+    "status": "running",
+    "started_at": "2026-08-06T09:15:02.000Z",
+    "completed_at": None,
+    "posts_seen": 150,
+    "posts_imported": 143,
+    "backfill_from": "2025-01-01T00:00:00.000Z",
+    "oldest_posted_at": "2025-11-04T18:22:00.000Z",
+    "error": None,
+    "created_at": "2026-08-06T09:15:00.000Z",
+}
+
+
+@pytest.mark.asyncio
+async def test_backfill_posts(client, transport: MockTransport):
+    transport.add(
+        "POST",
+        "/api/profiles/prof-1/backfill_posts",
+        202,
+        {**POST_SYNC_DATA, "status": "pending"},
+    )
+    sync = await client.profiles.backfill_posts("prof-1", from_="2025-01-01")
+
+    assert isinstance(sync, PostSync)
+    assert sync.id == "sync456def"
+    assert sync.trigger == "backfill"
+    assert sync.status == "pending"
+
+    request = transport.requests[0]
+    assert request.method == "POST"
+    assert json.loads(request.content) == {"from": "2025-01-01"}
+
+
+@pytest.mark.asyncio
+async def test_backfill_posts_sends_idempotency_key(client, transport: MockTransport):
+    transport.add("POST", "/api/profiles/prof-1/backfill_posts", 202, POST_SYNC_DATA)
+    await client.profiles.backfill_posts(
+        "prof-1", from_="2025-01-01", idempotency_key="key-1"
+    )
+    assert transport.requests[0].headers["idempotency-key"] == "key-1"
+
+
+@pytest.mark.asyncio
+async def test_backfill_posts_conflict(client, transport: MockTransport):
+    transport.add(
+        "POST",
+        "/api/profiles/prof-1/backfill_posts",
+        409,
+        {
+            "error": "A posts backfill is already running for this profile",
+            "profile_sync_id": "sync456def",
+        },
+    )
+    with pytest.raises(ConflictError) as exc:
+        await client.profiles.backfill_posts("prof-1", from_="2025-01-01")
+
+    assert exc.value.status_code == 409
+    assert exc.value.response["profile_sync_id"] == "sync456def"
+
+
+@pytest.mark.asyncio
+async def test_list_post_syncs(client, transport: MockTransport):
+    transport.add(
+        "GET",
+        "/api/profiles/prof-1/post_syncs",
+        200,
+        {"total": 1, "page": 0, "per_page": 25, "data": [POST_SYNC_DATA]},
+    )
+    result = await client.profiles.post_syncs(
+        "prof-1", trigger="backfill", status="running", per_page=25
+    )
+
+    assert isinstance(result, PaginatedResponse)
+    assert result.total == 1
+    assert result.data[0].posts_imported == 143
+    assert result.data[0].oldest_posted_at is not None
+
+    url = transport.requests[0].url
+    assert url.params["trigger"] == "backfill"
+    assert url.params["status"] == "running"
+    assert url.params["per_page"] == "25"
+
+
+@pytest.mark.asyncio
+async def test_get_post_sync(client, transport: MockTransport):
+    transport.add(
+        "GET",
+        "/api/profiles/prof-1/post_syncs/sync456def",
+        200,
+        {**POST_SYNC_DATA, "status": "completed"},
+    )
+    sync = await client.profiles.post_sync("prof-1", "sync456def")
+
+    assert sync.status == "completed"
+    assert transport.requests[0].url.path == "/api/profiles/prof-1/post_syncs/sync456def"

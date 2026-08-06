@@ -32,12 +32,15 @@ class WebhooksResource:
         events: List[str],
         *,
         description: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Webhook:
         json_body: dict[str, Any] = {"url": url, "events": events}
         if description is not None:
             json_body["description"] = description
 
-        data = await self._client._request("POST", "/webhooks", json=json_body)
+        data = await self._client._request(
+            "POST", "/webhooks", json=json_body, idempotency_key=idempotency_key
+        )
         return Webhook.model_validate(data)
 
     async def update(
@@ -48,6 +51,7 @@ class WebhooksResource:
         events: List[str] | None = None,
         enabled: bool | None = None,
         description: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Webhook:
         json_body: dict[str, Any] = {}
         if url is not None:
@@ -60,12 +64,16 @@ class WebhooksResource:
             json_body["description"] = description
 
         data = await self._client._request(
-            "PATCH", f"/webhooks/{id}", json=json_body
+            "PATCH", f"/webhooks/{id}", json=json_body, idempotency_key=idempotency_key
         )
         return Webhook.model_validate(data)
 
-    async def delete(self, id: str) -> DeleteResponse:
-        data = await self._client._request("DELETE", f"/webhooks/{id}")
+    async def delete(
+        self, id: str, *, idempotency_key: str | None = None
+    ) -> DeleteResponse:
+        data = await self._client._request(
+            "DELETE", f"/webhooks/{id}", idempotency_key=idempotency_key
+        )
         return DeleteResponse.model_validate(data)
 
     async def deliveries(

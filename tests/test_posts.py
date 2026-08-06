@@ -144,6 +144,7 @@ STATS_RESPONSE = {
                     "records": [
                         {
                             "stats": {"impressions": 1200, "likes": 85, "comments": 12, "saved": 8},
+                            "raw_stats": {"views": 1200, "like_count": 85},
                             "recorded_at": "2026-02-20T12:00:00Z",
                         },
                         {
@@ -185,6 +186,10 @@ async def test_stats(client, transport: MockTransport):
     assert ig.platform == "instagram"
     assert len(ig.records) == 2
     assert ig.records[0].stats["impressions"] == 1200
+    # raw_stats carries every metric under its original platform name.
+    assert ig.records[0].raw_stats["views"] == 1200
+    # Absent raw_stats defaults to an empty dict rather than failing validation.
+    assert ig.records[1].raw_stats == {}
     assert ig.records[1].stats["likes"] == 102
 
     tw = result.data["def456"].platforms[0]

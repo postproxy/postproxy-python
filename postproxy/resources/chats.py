@@ -52,6 +52,7 @@ class ChatsResource:
         participant_username: str | None = None,
         participant_name: str | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Chat:
         json_body: dict[str, Any] = {"participant_external_id": participant_external_id}
         if participant_username is not None:
@@ -64,6 +65,7 @@ class ChatsResource:
             f"/profiles/{profile_id}/chats",
             json=json_body,
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Chat.model_validate(data)
 
@@ -75,18 +77,32 @@ class ChatsResource:
         )
         return Chat.model_validate(data)
 
-    async def archive(self, chat_id: str, *, profile_group_id: str | None = None) -> Chat:
+    async def archive(
+        self,
+        chat_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> Chat:
         data = await self._client._request(
             "POST",
             f"/chats/{chat_id}/archive",
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Chat.model_validate(data)
 
-    async def unarchive(self, chat_id: str, *, profile_group_id: str | None = None) -> Chat:
+    async def unarchive(
+        self,
+        chat_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> Chat:
         data = await self._client._request(
             "DELETE",
             f"/chats/{chat_id}/archive",
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Chat.model_validate(data)

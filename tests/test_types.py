@@ -134,3 +134,50 @@ def test_stats_response_empty():
     from postproxy import StatsResponse
     resp = StatsResponse.model_validate({"data": {}})
     assert resp.data == {}
+
+
+def test_instagram_params_accept_user_tags():
+    from postproxy import InstagramParams, InstagramUserTag
+
+    params = InstagramParams(
+        format="post",
+        user_tags=[
+            InstagramUserTag(username="natgeo", x=0.5, y=0.4),
+            InstagramUserTag(username="nasa", x=0.2, y=0.8, media_index=1),
+            # Video slides are tagged by username only.
+            InstagramUserTag(username="spacex", media_index=2),
+        ],
+    )
+
+    assert params.user_tags is not None
+    assert len(params.user_tags) == 3
+    assert params.user_tags[0].x == 0.5
+    assert params.user_tags[2].media_index == 2
+    dumped = params.model_dump(exclude_none=True)
+    assert dumped["user_tags"][2] == {"username": "spacex", "media_index": 2}
+
+
+def test_post_sync_shape():
+    from postproxy import PostSync
+
+    sync = PostSync.model_validate(
+        {
+            "id": "sync456def",
+            "profile_id": "prof123abc",
+            "kind": "posts",
+            "trigger": "backfill",
+            "status": "running",
+            "started_at": "2026-08-06T09:15:02.000Z",
+            "completed_at": None,
+            "posts_seen": 150,
+            "posts_imported": 143,
+            "backfill_from": "2025-01-01T00:00:00.000Z",
+            "oldest_posted_at": "2025-11-04T18:22:00.000Z",
+            "error": None,
+            "created_at": "2026-08-06T09:15:00.000Z",
+        }
+    )
+
+    assert sync.trigger == "backfill"
+    assert sync.posts_imported < sync.posts_seen
+    assert sync.completed_at is None

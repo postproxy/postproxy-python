@@ -6,6 +6,7 @@ import pytest
 
 from postproxy import (
     AcceptedResponse,
+    BulkComment,
     Comment,
     PaginatedResponse,
 )
@@ -228,3 +229,114 @@ async def test_unlike_comment(client, transport: MockTransport):
     result = await client.comments.unlike("post1", "cmt_abc123", "prof1")
     assert isinstance(result, AcceptedResponse)
     assert result.accepted is True
+
+
+MOCK_BULK_COMMENT = {
+    "post_id": "abc123xyz",
+    "profile_id": "prof456",
+    "platform": "instagram",
+    "id": "cmt_abc123",
+    "external_id": "17858893269123456",
+    "body": "Great post!",
+    "status": "synced",
+    "author_username": "someuser",
+    "author_avatar_url": None,
+    "author_external_id": "12345",
+    "metadata": None,
+    "parent_external_id": None,
+    "like_count": 3,
+    "is_hidden": False,
+    "permalink": None,
+    "platform_data": None,
+    "attachments": [],
+    "posted_at": "2026-03-25T10:00:00Z",
+    "created_at": "2026-03-25T10:01:00Z",
+}
+
+MOCK_BULK_REPLY = {
+    **MOCK_BULK_COMMENT,
+    "id": "cmt_def456",
+    "external_id": "17858893269123457",
+    "body": "Thanks!",
+    "parent_external_id": "17858893269123456",
+    "like_count": 1,
+}
+
+
+@pytest.mark.asyncio
+async def test_list_comments_with_date_filter(client, transport: MockTransport):
+    transport.add(
+        "GET",
+        "/api/posts/post-1/comments",
+        200,
+        {"total": 1, "page": 0, "per_page": 20, "data": [MOCK_COMMENT]},
+    )
+    await client.comments.list(
+        "post-1", "prof-1", from_="2026-03-25", to="2026-03-26T12:00:00Z"
+    )
+
+    params = transport.requests[0].url.params
+    assert params["from"] == "2026-03-25"
+    assert params["to"] == "2026-03-26T12:00:00Z"
+
+
+@pytest.mark.asyncio
+async def test_list_all_comments(client, transport: MockTransport):
+    transport.add(
+        "GET",
+        "/api/comments",
+        200,
+        {
+            "total": 2,
+            "page": 0,
+            "per_page": 50,
+            "data": [MOCK_BULK_COMMENT, MOCK_BULK_REPLY],
+        },
+    )
+    result = await client.comments.list_all(
+        profiles=["instagram", "prof456"],
+        post_ids=["abc123xyz", "def456uvw"],
+        from_="2026-03-25",
+        per_page=50,
+    )
+
+    assert isinstance(result, PaginatedResponse)
+    assert result.total == 2
+    assert isinstance(result.data[0], BulkComment)
+    assert result.data[0].post_id == "abc123xyz"
+    assert result.data[0].profile_id == "prof456"
+    assert result.data[0].platform == "instagram"
+    # Flat: the reply is its own entry, linked by parent_external_id.
+    assert result.data[1].parent_external_id == "17858893269123456"
+
+    request = transport.requests[0]
+    assert request.url.path == "/api/comments"
+    params = request.url.params
+    assert params["profiles"] == "instagram,prof456"
+    assert params["post_ids"] == "abc123xyz,def456uvw"
+    assert params["from"] == "2026-03-25"
+    assert params["per_page"] == "50"
+
+
+@pytest.mark.asyncio
+async def test_list_all_comments_without_filters(client, transport: MockTransport):
+    transport.add(
+        "GET",
+        "/api/comments",
+        200,
+        {"total": 0, "page": 0, "per_page": 20, "data": []},
+    )
+    await client.comments.list_all()
+
+    params = transport.requests[0].url.params
+    assert "profiles" not in params
+    assert "post_ids" not in params
+
+
+@pytest.mark.asyncio
+async def test_create_comment_sends_idempotency_key(client, transport: MockTransport):
+    transport.add("POST", "/api/posts/post-1/comments", 200, MOCK_COMMENT)
+    await client.comments.create(
+        "post-1", "prof-1", "Nice", idempotency_key="key-42"
+    )
+    assert transport.requests[0].headers["idempotency-key"] == "key-42"

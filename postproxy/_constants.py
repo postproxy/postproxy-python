@@ -2,7 +2,7 @@ from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
 
-VERSION = "1.11.0"
+VERSION = "1.12.0"
 
 Platform = Literal[
     "facebook",
@@ -56,6 +56,10 @@ TikTokPrivacy = Literal[
 YouTubePrivacy = Literal["public", "unlisted", "private"]
 
 TelegramParseMode = Literal["HTML", "MarkdownV2"]
+
+PostSyncTrigger = Literal["connect", "scheduled", "backfill"]
+
+PostSyncStatus = Literal["pending", "running", "completed", "failed"]
 
 MessageDirection = Literal["inbound", "outbound"]
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import uuid
 
 from postproxy import PostProxy
 
@@ -23,14 +24,38 @@ async def main():
             for reply in comment.replies:
                 print(f"    {reply.author_username}: {reply.body}")
 
+        # Filter the per-post list by when PostProxy received the comment
+        recent = await client.comments.list(
+            post_id, profile_id, from_="2026-03-25", to="2026-03-26"
+        )
+        print(f"Comments received 2026-03-25..26: {recent.total}")
+
+        # List comments across every post in the profile group. Flat: replies
+        # come back as their own entries linked by parent_external_id.
+        across = await client.comments.list_all(
+            profiles=["instagram"], from_="2026-03-25", per_page=50
+        )
+        print(f"Comments across posts: {across.total}")
+        for c in across.data:
+            kind = "reply" if c.parent_external_id else "comment"
+            print(
+                f"  [{c.platform}] {kind} on post {c.post_id} — "
+                f"{c.author_username}: {c.body}"
+            )
+
         # Get a specific comment
         if comments.data:
             comment = await client.comments.get(post_id, comments.data[0].id, profile_id)
             print(f"Comment: {comment.body} (likes: {comment.like_count})")
 
-        # Create a comment on the post
+        # Create a comment on the post. An idempotency key makes the write
+        # safe to retry after a dropped connection — the retry replays the
+        # original response instead of posting a second comment.
         new_comment = await client.comments.create(
-            post_id, profile_id, "Thanks for the feedback everyone!"
+            post_id,
+            profile_id,
+            "Thanks for the feedback everyone!",
+            idempotency_key=str(uuid.uuid4()),
         )
         print(f"Created comment: {new_comment.id} (status: {new_comment.status})")
 

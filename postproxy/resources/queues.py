@@ -42,6 +42,7 @@ class QueuesResource:
         timezone: str | None = None,
         jitter: int | None = None,
         timeslots: List[dict[str, Any]] | None = None,
+        idempotency_key: str | None = None,
     ) -> Queue:
         post_queue: dict[str, Any] = {"name": name}
         if description is not None:
@@ -59,7 +60,7 @@ class QueuesResource:
         }
 
         data = await self._client._request(
-            "POST", "/post_queues", json=json_body
+            "POST", "/post_queues", json=json_body, idempotency_key=idempotency_key
         )
         return Queue.model_validate(data)
 
@@ -73,6 +74,7 @@ class QueuesResource:
         enabled: bool | None = None,
         jitter: int | None = None,
         timeslots: List[dict[str, Any]] | None = None,
+        idempotency_key: str | None = None,
     ) -> Queue:
         post_queue: dict[str, Any] = {}
         if name is not None:
@@ -91,10 +93,14 @@ class QueuesResource:
         json_body: dict[str, Any] = {"post_queue": post_queue}
 
         data = await self._client._request(
-            "PATCH", f"/post_queues/{id}", json=json_body
+            "PATCH", f"/post_queues/{id}", json=json_body, idempotency_key=idempotency_key
         )
         return Queue.model_validate(data)
 
-    async def delete(self, id: str) -> DeleteResponse:
-        data = await self._client._request("DELETE", f"/post_queues/{id}")
+    async def delete(
+        self, id: str, *, idempotency_key: str | None = None
+    ) -> DeleteResponse:
+        data = await self._client._request(
+            "DELETE", f"/post_queues/{id}", idempotency_key=idempotency_key
+        )
         return DeleteResponse.model_validate(data)

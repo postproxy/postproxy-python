@@ -57,6 +57,7 @@ class MessagesResource:
         reply_to_external_id: str | None = None,
         reply_markup: dict[str, Any] | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Message:
         # When media_files are provided, use multipart form data (mirrors PostsResource).
         if media_files is not None:
@@ -83,6 +84,7 @@ class MessagesResource:
                 data=form_data,
                 files=files,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         else:
             json_body: dict[str, Any] = {}
@@ -102,6 +104,7 @@ class MessagesResource:
                 f"/chats/{chat_id}/messages",
                 json=json_body,
                 profile_group_id=profile_group_id,
+                idempotency_key=idempotency_key,
             )
         return Message.model_validate(data)
 
@@ -120,6 +123,7 @@ class MessagesResource:
         body: str | None = None,
         reply_markup: dict[str, Any] | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Message:
         json_body: dict[str, Any] = {}
         if body is not None:
@@ -132,6 +136,7 @@ class MessagesResource:
             f"/messages/{message_id}",
             json=json_body,
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Message.model_validate(data)
 
@@ -142,6 +147,7 @@ class MessagesResource:
         reaction: str | None = None,
         emoji: str | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Message:
         json_body: dict[str, Any] = {}
         if reaction is not None:
@@ -154,13 +160,21 @@ class MessagesResource:
             f"/messages/{message_id}/react",
             json=json_body or None,
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Message.model_validate(data)
 
-    async def unreact(self, message_id: str, *, profile_group_id: str | None = None) -> Message:
+    async def unreact(
+        self,
+        message_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> Message:
         data = await self._client._request(
             "DELETE",
             f"/messages/{message_id}/unreact",
             profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
         )
         return Message.model_validate(data)

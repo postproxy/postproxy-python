@@ -28,16 +28,23 @@ class ProfileGroupsResource:
         data = await self._client._request("GET", f"/profile_groups/{id}")
         return ProfileGroup.model_validate(data)
 
-    async def create(self, name: str) -> ProfileGroup:
+    async def create(
+        self, name: str, *, idempotency_key: str | None = None
+    ) -> ProfileGroup:
         data = await self._client._request(
             "POST",
             "/profile_groups",
             json={"profile_group": {"name": name}},
+            idempotency_key=idempotency_key,
         )
         return ProfileGroup.model_validate(data)
 
-    async def delete(self, id: str) -> DeleteResponse:
-        data = await self._client._request("DELETE", f"/profile_groups/{id}")
+    async def delete(
+        self, id: str, *, idempotency_key: str | None = None
+    ) -> DeleteResponse:
+        data = await self._client._request(
+            "DELETE", f"/profile_groups/{id}", idempotency_key=idempotency_key
+        )
         return DeleteResponse.model_validate(data)
 
     async def initialize_connection(

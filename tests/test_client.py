@@ -9,6 +9,7 @@ from postproxy import (
     NotFoundError,
     ValidationError,
     BadRequestError,
+    ConflictError,
 )
 from tests.conftest import MockTransport
 
@@ -77,6 +78,42 @@ async def test_unknown_error_raises_base(client, transport: MockTransport):
     with pytest.raises(PostProxyError) as exc_info:
         await client.posts.get("x")
     assert exc_info.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_409_raises_conflict_error(client, transport: MockTransport):
+    transport.add(
+        "POST",
+        "/api/posts",
+        409,
+        {"error": "Duplicate post", "duplicate_post_id": "post-1"},
+    )
+    with pytest.raises(ConflictError) as exc_info:
+        await client.posts.create("test", ["p1"])
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.response["duplicate_post_id"] == "post-1"
+
+
+@pytest.mark.asyncio
+async def test_idempotency_key_header_is_sent(client, transport: MockTransport):
+    transport.add("POST", "/api/posts", 200, {"id": "post-1", "body": "hi", "status": "processed", "created_at": "2026-08-06T00:00:00Z"})
+    await client.posts.create(
+        "hi", ["p1"], idempotency_key="3f8b1c94-6a2d-4f0e-9d31-7c5e2a8b4f10"
+    )
+    assert (
+        transport.requests[0].headers["idempotency-key"]
+        == "3f8b1c94-6a2d-4f0e-9d31-7c5e2a8b4f10"
+    )
+
+
+@pytest.mark.asyncio
+async def test_idempotency_key_header_omitted_by_default(
+    client, transport: MockTransport
+):
+    transport.add("POST", "/api/posts", 200, {"id": "post-1", "body": "hi", "status": "processed", "created_at": "2026-08-06T00:00:00Z"})
+    await client.posts.create("hi", ["p1"])
+    assert "idempotency-key" not in transport.requests[0].headers
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from ._constants import DEFAULT_BASE_URL, VERSION
 from ._exceptions import (
     AuthenticationError,
     BadRequestError,
+    ConflictError,
     NotFoundError,
     PostProxyError,
     ValidationError,
@@ -67,6 +68,7 @@ class PostProxy:
         data: dict[str, Any] | None = None,
         files: list[tuple[str, tuple[str | None, Any, str]]] | None = None,
         profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Any:
         url = f"{self.base_url}/api{path}"
 
@@ -81,6 +83,8 @@ class PostProxy:
             "Authorization": f"Bearer {self.api_key}",
             "User-Agent": _USER_AGENT,
         }
+        if idempotency_key is not None:
+            headers["Idempotency-Key"] = idempotency_key
 
         response = await self._client.request(
             method,
@@ -116,6 +120,8 @@ class PostProxy:
             raise AuthenticationError(message, **error_kwargs)
         if response.status_code == 404:
             raise NotFoundError(message, **error_kwargs)
+        if response.status_code == 409:
+            raise ConflictError(message, **error_kwargs)
         if response.status_code == 422:
             raise ValidationError(message, **error_kwargs)
         if response.status_code == 400:

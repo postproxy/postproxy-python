@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.12.0] - 2026-08-06
+
+### Added
+
+- **Post syncs & backfill.** `profiles.backfill_posts(id, from_=...)` walks a profile's feed backwards from the newest post and imports the history behind it; `profiles.post_syncs(id, trigger=..., status=..., page=..., per_page=...)` and `profiles.post_sync(id, post_sync_id)` expose every post pull — the one fired on connect, the recurring poll, and backfills — as a new `PostSync` model, with the `PostSyncTrigger` and `PostSyncStatus` literals.
+- **`comments.list_all(post_ids=..., profiles=..., from_=..., to=..., page=..., per_page=...)`** — comments across every post in the profile group in one request. Flat: replies are their own entries linked by `parent_external_id`, modelled as the new `BulkComment` (adds `post_id`, `profile_id`, `platform`).
+- `from_` and `to` arguments on `comments.list()`, filtering on when PostProxy received the comment.
+- **Idempotency.** Every write method accepts an `idempotency_key` argument, sent as the `Idempotency-Key` header, so a dropped connection no longer forces a choice between a duplicate write and a lost one.
+- `ConflictError` (409), raised for a duplicate submission (`response["duplicate_post_id"]`), a backfill already running (`response["profile_sync_id"]`), or an in-flight idempotency key. Previously these surfaced as a bare `PostProxyError`.
+- **Instagram user tags.** `InstagramParams.user_tags` with the new `InstagramUserTag` model (`username`, `x`, `y`, `media_index`) — tag accounts on feed posts, reels, and stories.
+- `StatsRecord.raw_stats` — every metric under its original platform name, alongside the normalized `stats`.
+- `examples/backfill_posts.py`, and cross-post comment listing in `examples/manage_comments.py`.
+
+### Changed
+
+- LinkedIn post stats now normalize `likes`, `comments`, `shares`, and `clicks` alongside `impressions` (server-side; `stats` was already an open dict).
+- `HUMAN_AGENT` is now approved on **both** Facebook and Instagram and extends the reply window to 7 days. `messages.send(chat_id, tag="HUMAN_AGENT")` is unchanged — see the README for Meta's policy limits.
+
 ## [1.11.0] - 2026-07-14
 
 ### Added
