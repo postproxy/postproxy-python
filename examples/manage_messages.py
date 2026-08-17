@@ -3,7 +3,7 @@
 import asyncio
 import os
 
-from postproxy import PostProxy
+from postproxy import MessageButton, MessageCard, PostProxy, QuickReply
 
 API_KEY = os.environ["POSTPROXY_API_KEY"]
 PROFILE_GROUP_ID = os.environ.get("POSTPROXY_PROFILE_GROUP_ID", "")
@@ -48,6 +48,43 @@ async def main():
 
         # Send an image from a local file (multipart)
         # await client.messages.send(chat.id, media_files=["./photo.png"])
+
+        # Quick replies — tappable chips above the composer, gone once tapped.
+        # Facebook & Instagram only; up to 13.
+        await client.messages.send(
+            chat.id,
+            body="What can I help with?",
+            quick_replies=[
+                QuickReply(title="Track order", payload="TRACK"),
+                QuickReply(title="Talk to support", payload="HELP"),
+            ],
+        )
+
+        # Buttons — attached to the message and stay in the thread. Up to 3, and
+        # body is capped at 80 characters when buttons are present (Meta's limit).
+        # card adds subtitle / image / tap-through to the same card.
+        await client.messages.send(
+            chat.id,
+            body="Your order shipped",
+            buttons=[
+                MessageButton(
+                    type="web_url", title="Track", url="https://shop.example.com/o/123"
+                ),
+                MessageButton(type="postback", title="Cancel", payload="CANCEL:123"),
+            ],
+            card=MessageCard(
+                subtitle="Arriving Friday",
+                image_url="https://cdn.example.com/shoe.png",
+            ),
+        )
+
+        # A tap comes back as an inbound message carrying tapped_action.
+        inbound = await client.messages.list(chat.id, direction="inbound")
+        for msg in inbound.data:
+            if msg.tapped_action:
+                print(
+                    f"  tapped {msg.tapped_action.kind}: {msg.tapped_action.payload}"
+                )
 
         # React / unreact (Facebook & Instagram)
         await client.messages.react(sent.id, reaction="love", emoji="❤️")

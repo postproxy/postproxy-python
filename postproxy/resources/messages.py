@@ -2,16 +2,32 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, List, Sequence
+
+from pydantic import BaseModel
 
 from .._types import (
     Message,
+    MessageButton,
+    MessageCard,
     PaginatedResponse,
+    QuickReply,
 )
 from .._constants import MessageDirection, MessageStatus
 
 if TYPE_CHECKING:
     from .._client import PostProxy
+
+
+def _dump(value: Any) -> Any:
+    """Accept either a pydantic model or a plain dict for interactive params.
+
+    Models would otherwise reach httpx unserializable. Unset fields are dropped
+    so an omitted `content_type` stays omitted rather than being sent as null.
+    """
+    if isinstance(value, BaseModel):
+        return value.model_dump(exclude_none=True)
+    return value
 
 
 class MessagesResource:
@@ -56,9 +72,19 @@ class MessagesResource:
         tag: str | None = None,
         reply_to_external_id: str | None = None,
         reply_markup: dict[str, Any] | None = None,
+        quick_replies: Sequence[QuickReply | dict[str, Any]] | None = None,
+        buttons: Sequence[MessageButton | dict[str, Any]] | None = None,
+        card: MessageCard | dict[str, Any] | None = None,
         profile_group_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Message:
+        """Send a message to a chat.
+
+        `quick_replies`, `buttons`, and `card` are Facebook and Instagram only —
+        they return 422 on Telegram and Bluesky, where `reply_markup` is the
+        equivalent. They are sent on the JSON path only, so pass `media` as
+        hosted URLs rather than `media_files` when combining with an attachment.
+        """
         # When media_files are provided, use multipart form data (mirrors PostsResource).
         if media_files is not None:
             form_data: dict[str, Any] = {}
@@ -98,6 +124,12 @@ class MessagesResource:
                 json_body["reply_to_external_id"] = reply_to_external_id
             if reply_markup is not None:
                 json_body["reply_markup"] = reply_markup
+            if quick_replies is not None:
+                json_body["quick_replies"] = [_dump(qr) for qr in quick_replies]
+            if buttons is not None:
+                json_body["buttons"] = [_dump(b) for b in buttons]
+            if card is not None:
+                json_body["card"] = _dump(card)
 
             data = await self._client._request(
                 "POST",

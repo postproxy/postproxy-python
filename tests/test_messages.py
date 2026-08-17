@@ -4,7 +4,14 @@ import json
 
 import pytest
 
-from postproxy import Message, PaginatedResponse
+from postproxy import (
+    CardDefaultAction,
+    Message,
+    MessageButton,
+    MessageCard,
+    PaginatedResponse,
+    QuickReply,
+)
 from tests.conftest import MockTransport
 
 
@@ -86,6 +93,77 @@ async def test_send_message_with_tag(client, transport: MockTransport):
     req = transport.requests[0]
     body = json.loads(req.content)
     assert body["tag"] == "HUMAN_AGENT"
+
+
+@pytest.mark.asyncio
+async def test_send_quick_replies_accepts_models_and_dicts(client, transport: MockTransport):
+    transport.add("POST", "/api/chats/chat_xyz789/messages", 202, {
+        **MOCK_OUTBOUND,
+        "quick_replies": [{"content_type": "text", "title": "Track order", "payload": "TRACK"}],
+    })
+    msg = await client.messages.send(
+        "chat_xyz789",
+        body="What can I help with?",
+        quick_replies=[
+            QuickReply(title="Track order", payload="TRACK"),
+            {"title": "Talk to support", "payload": "HELP"},
+        ],
+    )
+    req = transport.requests[0]
+    body = json.loads(req.content)
+    # The model is dumped without its unset content_type, matching the dict form.
+    assert body["quick_replies"] == [
+        {"title": "Track order", "payload": "TRACK"},
+        {"title": "Talk to support", "payload": "HELP"},
+    ]
+    assert msg.quick_replies[0].content_type == "text"
+
+
+@pytest.mark.asyncio
+async def test_send_buttons_with_card(client, transport: MockTransport):
+    transport.add("POST", "/api/chats/chat_xyz789/messages", 202, {
+        **MOCK_OUTBOUND,
+        "buttons": [{"type": "web_url", "title": "Track", "url": "https://shop.example.com"}],
+        "card": {"subtitle": "Arriving Friday"},
+    })
+    msg = await client.messages.send(
+        "chat_xyz789",
+        body="Your order shipped",
+        buttons=[
+            MessageButton(type="web_url", title="Track", url="https://shop.example.com"),
+            {"type": "postback", "title": "Cancel", "payload": "CANCEL:123"},
+        ],
+        card=MessageCard(
+            subtitle="Arriving Friday",
+            default_action=CardDefaultAction(type="web_url", url="https://shop.example.com"),
+        ),
+    )
+    req = transport.requests[0]
+    body = json.loads(req.content)
+    assert body["buttons"] == [
+        {"type": "web_url", "title": "Track", "url": "https://shop.example.com"},
+        {"type": "postback", "title": "Cancel", "payload": "CANCEL:123"},
+    ]
+    assert body["card"] == {
+        "subtitle": "Arriving Friday",
+        "default_action": {"type": "web_url", "url": "https://shop.example.com"},
+    }
+    assert msg.buttons[0].url == "https://shop.example.com"
+    assert msg.card.subtitle == "Arriving Friday"
+
+
+@pytest.mark.asyncio
+async def test_tapped_action_on_inbound(client, transport: MockTransport):
+    transport.add("GET", "/api/messages/msg_333", 200, {
+        **MOCK_INBOUND,
+        "id": "msg_333",
+        "body": "Track order",
+        "tapped_action": {"kind": "quick_reply", "payload": "TRACK", "title": "Track order"},
+    })
+    msg = await client.messages.get("msg_333")
+    assert msg.tapped_action.kind == "quick_reply"
+    assert msg.tapped_action.payload == "TRACK"
+    assert msg.tapped_action.title == "Track order"
 
 
 @pytest.mark.asyncio

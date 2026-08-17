@@ -2,7 +2,7 @@ from typing import Literal, get_args
 
 DEFAULT_BASE_URL = "https://api.postproxy.dev"
 
-VERSION = "1.12.0"
+VERSION = "1.13.0"
 
 Platform = Literal[
     "facebook",

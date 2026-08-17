@@ -301,6 +301,64 @@ class Chat(BaseModel):
     created_at: datetime
 
 
+class QuickReply(BaseModel):
+    """A tappable chip above the participant's composer, gone once tapped.
+
+    Facebook and Instagram only; up to 13 per send. ``content_type`` is optional
+    on send (only ``"text"`` is accepted) and always present on responses.
+    """
+
+    content_type: str | None = None
+    title: str
+    payload: str
+
+
+class MessageButton(BaseModel):
+    """A button attached to the message, delivered as a Meta generic template.
+
+    Facebook and Instagram only; up to 3 per send. ``url`` is required and must
+    be https when ``type`` is ``"web_url"``; ``payload`` is required when
+    ``type`` is ``"postback"``. ``type`` is a plain string rather than an enum so
+    a new Meta button type needs no SDK release.
+    """
+
+    type: str
+    title: str
+    url: str | None = None
+    payload: str | None = None
+
+
+class CardDefaultAction(BaseModel):
+    type: str
+    url: str
+
+
+class MessageCard(BaseModel):
+    """Extra fields for the generic-template element that carries ``buttons``.
+
+    Requires ``buttons``. ``subtitle`` is capped at 80 characters, and both URLs
+    must be https.
+    """
+
+    subtitle: str | None = None
+    image_url: str | None = None
+    default_action: CardDefaultAction | None = None
+
+
+class TappedAction(BaseModel):
+    """Set on inbound messages created by a tap on an element you sent.
+
+    Derived from ``platform_data`` rather than stored, so it also resolves for
+    taps ingested before PostProxy exposed this field. ``kind`` is one of
+    ``quick_reply``, ``postback``, or ``callback_query`` — the last is Telegram,
+    so this is not Meta-only even though the send params are.
+    """
+
+    kind: str
+    payload: str
+    title: str | None = None
+
+
 class Message(BaseModel):
     id: str
     chat_id: str
@@ -318,6 +376,10 @@ class Message(BaseModel):
     external_edited_at: datetime | None = None
     reply_to_external_id: str | None = None
     reply_markup: dict | None = None
+    quick_replies: list[QuickReply] | None = None
+    buttons: list[MessageButton] | None = None
+    card: MessageCard | None = None
+    tapped_action: TappedAction | None = None
     external_deleted_at: datetime | None = None
     reactions: list[Reaction] = []
     attachments: list[Attachment] = []
