@@ -80,3 +80,47 @@ async def test_unarchive_chat(client, transport: MockTransport):
     transport.add("DELETE", "/api/chats/chat_xyz789/archive", 200, {**MOCK_CHAT, "archived": False})
     chat = await client.chats.unarchive("chat_xyz789")
     assert chat.archived is False
+
+
+@pytest.mark.asyncio
+async def test_create_whatsapp_chat_on_placement(client, transport: MockTransport):
+    transport.add("POST", "/api/profiles/prof_wa/chats", 201, {**MOCK_CHAT, "platform": "whatsapp"})
+    await client.chats.create("prof_wa", "15551234567", placement_id="pn_1")
+    assert json.loads(transport.requests[0].content) == {
+        "participant_external_id": "15551234567",
+        "placement_id": "pn_1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_chat_whatsapp_fields(client, transport: MockTransport):
+    transport.add("GET", "/api/chats/chat_wa", 200, {
+        **MOCK_CHAT,
+        "platform": "whatsapp",
+        "external_placement_id": "pn_1",
+        "group": False,
+        "within_messaging_window": True,
+    })
+    chat = await client.chats.get("chat_wa")
+    assert chat.external_placement_id == "pn_1"
+    assert chat.group is False
+    assert chat.within_messaging_window is True
+
+
+@pytest.mark.asyncio
+async def test_mark_read(client, transport: MockTransport):
+    transport.add("POST", "/api/chats/chat_xyz789/mark_read", 200, MOCK_CHAT)
+    chat = await client.chats.mark_read("chat_xyz789")
+    assert isinstance(chat, Chat)
+    assert transport.requests[0].method == "POST"
+
+
+@pytest.mark.asyncio
+async def test_start_and_stop_typing(client, transport: MockTransport):
+    transport.add("POST", "/api/chats/chat_xyz789/start_typing", 202, {"accepted": True})
+    transport.add("POST", "/api/chats/chat_xyz789/stop_typing", 202, {"accepted": True})
+    started = await client.chats.start_typing("chat_xyz789")
+    await client.chats.stop_typing("chat_xyz789")
+    assert started.accepted is True
+    assert transport.requests[0].url.path.endswith("/start_typing")
+    assert transport.requests[1].url.path.endswith("/stop_typing")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from postproxy import (
@@ -10,6 +11,8 @@ from postproxy import (
     ValidationError,
     BadRequestError,
     ConflictError,
+    ForbiddenError,
+    RateLimitError,
 )
 from tests.conftest import MockTransport
 
@@ -120,3 +123,65 @@ async def test_idempotency_key_header_omitted_by_default(
 async def test_context_manager():
     async with PostProxy("key") as c:
         assert c.api_key == "key"
+
+
+def _client_returning(response: httpx.Response) -> tuple[PostProxy, list[httpx.Request]]:
+    """A client whose every request gets `response` (headers and raw bodies included)."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return response
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return PostProxy("k", httpx_client=http), seen
+
+
+@pytest.mark.asyncio
+async def test_403_raises_forbidden_error(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles", 403, {"error": "Account is past due"})
+    with pytest.raises(ForbiddenError) as exc_info:
+        await client.profiles.list()
+    assert exc_info.value.status_code == 403
+    assert "past due" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_429_raises_rate_limit_error_with_retry_after():
+    c, _ = _client_returning(
+        httpx.Response(429, json={"error": "rate limited"}, headers={"Retry-After": "30"})
+    )
+    with pytest.raises(RateLimitError) as exc_info:
+        await c.profiles.list()
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.retry_after == 30
+
+
+@pytest.mark.asyncio
+async def test_429_without_retry_after():
+    c, _ = _client_returning(httpx.Response(429, json={"error": "rate limited"}))
+    with pytest.raises(RateLimitError) as exc_info:
+        await c.profiles.list()
+    assert exc_info.value.retry_after is None
+
+
+@pytest.mark.asyncio
+async def test_skip_duplicate_check_header(client, transport: MockTransport):
+    transport.add("POST", "/api/posts", 200, {"id": "post-1", "body": "hi", "status": "processed", "created_at": "2026-08-06T00:00:00Z"})
+    await client.posts.create("hi", ["p1"], skip_duplicate_check=True)
+    await client.posts.create("hi", ["p1"])
+    assert transport.requests[0].headers["x-skip-duplicate-check"] == "true"
+    assert "x-skip-duplicate-check" not in transport.requests[1].headers
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_media_returns_raw_bytes():
+    c, seen = _client_returning(
+        httpx.Response(200, content=bytes([1, 2, 3]), headers={"Content-Type": "image/jpeg"})
+    )
+    media = await c.whatsapp.media("prof-1", "pn-1", "media-1")
+    assert media.data == bytes([1, 2, 3])
+    assert media.content_type == "image/jpeg"
+    assert seen[0].url.path == "/api/profiles/prof-1/whatsapp/media"
+    assert seen[0].url.params["media_id"] == "media-1"
+    assert seen[0].url.params["phone_number_id"] == "pn-1"

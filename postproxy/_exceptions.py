@@ -39,3 +39,30 @@ class ValidationError(PostProxyError):
 
 class BadRequestError(PostProxyError):
     pass
+
+
+class ForbiddenError(PostProxyError):
+    """403.
+
+    The account is canceled or past due, or the platform refused the action
+    for lack of permission.
+    """
+
+
+class RateLimitError(PostProxyError):
+    """429. The platform is rate-limiting; retry after ``retry_after`` seconds.
+
+    ``retry_after`` is parsed from the ``Retry-After`` header and is ``None``
+    when the header is missing or not a positive number.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        response: dict[str, Any] | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code, response=response)
+        self.retry_after = retry_after

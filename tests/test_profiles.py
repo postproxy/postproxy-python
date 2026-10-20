@@ -234,3 +234,138 @@ async def test_get_post_sync(client, transport: MockTransport):
 
     assert sync.status == "completed"
     assert transport.requests[0].url.path == "/api/profiles/prof-1/post_syncs/sync456def"
+
+
+def test_profile_new_fields():
+    profile = Profile.model_validate({
+        **PROFILE_DATA,
+        "status": "inactive",
+        "username": "acme",
+        "inactive_reason": "network_taken",
+        "platform_id": "123",
+        "avatar_url": "https://img.test/a.png",
+        "platform_url": "https://facebook.com/acme",
+        "placements_sync_status": "synced",
+    })
+    assert profile.inactive_reason == "network_taken"
+    assert profile.platform_id == "123"
+
+
+@pytest.mark.asyncio
+async def test_daily_stats_with_attribution(client, transport: MockTransport):
+    from postproxy import DailyStatsResponse
+
+    transport.add("GET", "/api/profiles/p1/daily_stats", 200, {
+        "data": {
+            "profile_id": "p1",
+            "platform": "facebook",
+            "placement_id": "pl1",
+            "attribution": "publish",
+            "from": "2026-09-01",
+            "to": "2026-09-30",
+            "records": [{"date": "2026-09-01", "impressions": 10, "platform_stats": None}],
+            "metrics": {},
+        }
+    })
+    result = await client.profiles.daily_stats(
+        "p1", placement_id="pl1", from_="2026-09-01", to="2026-09-30", attribution="publish"
+    )
+    assert isinstance(result, DailyStatsResponse)
+    assert result.data.from_ == "2026-09-01"
+    assert result.data.records[0].impressions == 10
+    params = transport.requests[0].url.params
+    assert params["attribution"] == "publish"
+    assert params["placement_id"] == "pl1"
+    assert params["from"] == "2026-09-01"
+
+
+@pytest.mark.asyncio
+async def test_follower_history(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles/p1/follower_history", 200, {
+        "data": {"profile_id": "p1", "records": [{"date": "2026-09-01", "followers_total": 100}]}
+    })
+    result = await client.profiles.follower_history("p1", from_="2026-09-01")
+    assert result.data.records[0].followers_total == 100
+    assert transport.requests[0].url.params["from"] == "2026-09-01"
+
+
+@pytest.mark.asyncio
+async def test_participant_status(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles/p1/participants/igsid_1", 200, {
+        "is_verified_user": True, "fetched_at": "2026-09-01T00:00:00Z",
+    })
+    result = await client.profiles.participant_status("p1", "igsid_1")
+    assert result.is_verified_user is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_mention(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles/p1/resolve_mention", 200, {
+        "urn": "urn:li:organization:1", "type": "organization", "name": "Acme", "vanity_name": "acme",
+    })
+    result = await client.profiles.resolve_mention("p1", "https://www.linkedin.com/company/acme")
+    assert result.urn == "urn:li:organization:1"
+    assert transport.requests[0].url.params["url"] == "https://www.linkedin.com/company/acme"
+
+
+@pytest.mark.asyncio
+async def test_instagram_available_audio(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles/p1/instagram/available_audio", 200, {"data": [{"id": "a1"}]})
+    result = await client.profiles.instagram_available_audio(
+        "p1", audio_type="music", search_query="summer"
+    )
+    assert result.data[0]["id"] == "a1"
+    params = transport.requests[0].url.params
+    assert params["audio_type"] == "music"
+    assert params["search_query"] == "summer"
+
+
+@pytest.mark.asyncio
+async def test_facebook_page_read_and_update(client, transport: MockTransport):
+    transport.add("GET", "/api/profiles/p1/facebook/page", 200, {"about": "Hi"})
+    transport.add("PATCH", "/api/profiles/p1/facebook/update_page", 200, {"about": "New about"})
+    page = await client.profiles.facebook_page("p1", "page_1", fields="about,website")
+    await client.profiles.update_facebook_page("p1", "page_1", {"about": "New about"})
+    assert page["about"] == "Hi"
+    read, update = transport.requests
+    assert read.url.params["page_id"] == "page_1"
+    assert read.url.params["fields"] == "about,website"
+    assert json.loads(update.content) == {"about": "New about", "page_id": "page_1"}
+
+
+@pytest.mark.asyncio
+async def test_assign_to_group(client, transport: MockTransport):
+    transport.add("PATCH", "/api/profiles/p1/assign_to_group", 200, {**PROFILE_DATA, "id": "p1"})
+    profile = await client.profiles.assign_to_group("p1", "pg_2")
+    assert profile.id == "p1"
+    assert json.loads(transport.requests[0].content) == {"target_profile_group_id": "pg_2"}
+
+
+@pytest.mark.asyncio
+async def test_chat_backfill_and_syncs(client, transport: MockTransport):
+    from postproxy import ChatSync
+
+    sync = {
+        "id": "cs1",
+        "profile_id": "p1",
+        "kind": "chats",
+        "trigger": "backfill",
+        "status": "pending",
+        "chats_seen": 0,
+        "messages_imported": 0,
+        "created_at": "2026-10-01T00:00:00Z",
+    }
+    transport.add("POST", "/api/profiles/p1/backfill_chats", 202, sync)
+    transport.add("GET", "/api/profiles/p1/chat_syncs", 200, {"total": 1, "page": 1, "per_page": 5, "data": [sync]})
+    transport.add("GET", "/api/profiles/p1/chat_syncs/cs1", 200, sync)
+    started = await client.profiles.backfill_chats("p1", from_="2026-01-01T00:00:00Z")
+    listed = await client.profiles.chat_syncs("p1", status="running", per_page=5)
+    one = await client.profiles.chat_sync("p1", "cs1")
+    assert isinstance(started, ChatSync)
+    assert started.chats_seen == 0
+    assert listed.data[0].id == "cs1"
+    assert one.id == "cs1"
+    start, list_, _ = transport.requests
+    assert json.loads(start.content) == {"from": "2026-01-01T00:00:00Z"}
+    assert list_.url.params["status"] == "running"
+    assert list_.url.params["per_page"] == "5"

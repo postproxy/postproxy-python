@@ -32,6 +32,24 @@ async def main():
         )
         print(f"\nRedirect the user to: {conn.url}")
 
+        # Instagram via Facebook login (needed to attach music to reels)
+        ig_via_facebook = await client.profile_groups.initialize_connection(
+            group.id,
+            platform="instagram",
+            redirect_url="https://yourapp.com/callback",
+            onboarding="facebook",
+        )
+        print(f"Instagram (Facebook login) URL: {ig_via_facebook.url}")
+
+        # WhatsApp through the WhatsApp Business app ("api" for the Cloud API)
+        whatsapp = await client.profile_groups.initialize_connection(
+            group.id,
+            platform="whatsapp",
+            redirect_url="https://yourapp.com/callback",
+            onboarding="business_app",
+        )
+        print(f"WhatsApp URL: {whatsapp.url}")
+
         # After connecting, list a profile's placements (Pages, channels, locations)
         placements = (await client.profiles.placements("profile-id")).data
         print("Placements:", [(p.id, p.name) for p in placements])

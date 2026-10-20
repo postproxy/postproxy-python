@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from .._types import (
+    AcceptedResponse,
     Chat,
     PaginatedResponse,
 )
@@ -51,14 +52,22 @@ class ChatsResource:
         *,
         participant_username: str | None = None,
         participant_name: str | None = None,
+        placement_id: str | None = None,
         profile_group_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Chat:
+        """Find or create a chat with a participant.
+
+        `placement_id` is required for WhatsApp: the phone number id from
+        `profiles.placements()`.
+        """
         json_body: dict[str, Any] = {"participant_external_id": participant_external_id}
         if participant_username is not None:
             json_body["participant_username"] = participant_username
         if participant_name is not None:
             json_body["participant_name"] = participant_name
+        if placement_id is not None:
+            json_body["placement_id"] = placement_id
 
         data = await self._client._request(
             "POST",
@@ -106,3 +115,50 @@ class ChatsResource:
             idempotency_key=idempotency_key,
         )
         return Chat.model_validate(data)
+
+    async def mark_read(
+        self,
+        chat_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> Chat:
+        """Mark the latest inbound message as read (shows the read receipt)."""
+        data = await self._client._request(
+            "POST",
+            f"/chats/{chat_id}/mark_read",
+            profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
+        )
+        return Chat.model_validate(data)
+
+    async def start_typing(
+        self,
+        chat_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AcceptedResponse:
+        """Show the typing indicator. Facebook, Instagram and WhatsApp only."""
+        data = await self._client._request(
+            "POST",
+            f"/chats/{chat_id}/start_typing",
+            profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
+        )
+        return AcceptedResponse.model_validate(data)
+
+    async def stop_typing(
+        self,
+        chat_id: str,
+        *,
+        profile_group_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AcceptedResponse:
+        data = await self._client._request(
+            "POST",
+            f"/chats/{chat_id}/stop_typing",
+            profile_group_id=profile_group_id,
+            idempotency_key=idempotency_key,
+        )
+        return AcceptedResponse.model_validate(data)

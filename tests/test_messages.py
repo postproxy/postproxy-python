@@ -225,3 +225,109 @@ async def test_private_reply(client, transport: MockTransport):
     body = json.loads(req.content)
     assert body["text"] == "DM-ing you the details."
     assert "profile_id=prof1" in str(req.url)
+
+
+@pytest.mark.asyncio
+async def test_send_carousel(client, transport: MockTransport):
+    from postproxy import MessageElement
+
+    transport.add("POST", "/api/chats/chat_1/messages", 201, MOCK_OUTBOUND)
+    await client.messages.send(
+        "chat_1",
+        elements=[
+            MessageElement(title="Red", image_url="https://img.test/r.jpg"),
+            {
+                "title": "Blue",
+                "subtitle": "Restocked",
+                "buttons": [{"type": "postback", "title": "Pick", "payload": "BLUE"}],
+            },
+        ],
+    )
+    assert json.loads(transport.requests[0].content) == {
+        "elements": [
+            {"title": "Red", "image_url": "https://img.test/r.jpg"},
+            {
+                "title": "Blue",
+                "subtitle": "Restocked",
+                "buttons": [{"type": "postback", "title": "Pick", "payload": "BLUE"}],
+            },
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_send_whatsapp_template(client, transport: MockTransport):
+    from postproxy import MessageTemplateInput, TemplateButtonParam
+
+    transport.add("POST", "/api/chats/chat_1/messages", 201, MOCK_OUTBOUND)
+    await client.messages.send(
+        "chat_1",
+        template=MessageTemplateInput(
+            name="order_update",
+            language="en_US",
+            variables=["#1234"],
+            button_params=[TemplateButtonParam(index=0, sub_type="url", text="1234")],
+        ),
+    )
+    assert json.loads(transport.requests[0].content) == {
+        "template": {
+            "name": "order_update",
+            "language": "en_US",
+            "variables": ["#1234"],
+            "button_params": [{"index": 0, "sub_type": "url", "text": "1234"}],
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_send_whatsapp_payloads_and_options(client, transport: MockTransport):
+    from postproxy import MessageLocation
+
+    transport.add("POST", "/api/chats/chat_1/messages", 201, MOCK_OUTBOUND)
+    send = client.messages.send
+    await send("chat_1", location=MessageLocation(latitude=52.5, longitude=13.4, name="Store"))
+    await send("chat_1", contacts=[{"name": {"formatted_name": "Jane"}}])
+    await send("chat_1", body="Your code is 1234", category="utility", link_preview=False)
+    await send("chat_1", media=["https://files.test/a.pdf"], filename="invoice.pdf")
+    await send("chat_1", media=["https://files.test/a.ogg"], voice_note=True)
+    await send("chat_1", interactive={"type": "button", "body": {"text": "Pick"}})
+    bodies = [json.loads(r.content) for r in transport.requests]
+    assert bodies[0] == {"location": {"latitude": 52.5, "longitude": 13.4, "name": "Store"}}
+    assert bodies[1] == {"contacts": [{"name": {"formatted_name": "Jane"}}]}
+    assert bodies[2] == {"body": "Your code is 1234", "category": "utility", "link_preview": False}
+    assert bodies[3] == {"media": ["https://files.test/a.pdf"], "filename": "invoice.pdf"}
+    assert bodies[4] == {"media": ["https://files.test/a.ogg"], "voice_note": True}
+    assert bodies[5] == {"interactive": {"type": "button", "body": {"text": "Pick"}}}
+
+
+@pytest.mark.asyncio
+async def test_send_voice_note_file_as_multipart(client, transport: MockTransport, tmp_path):
+    audio = tmp_path / "note.ogg"
+    audio.write_bytes(b"OggS")
+    transport.add("POST", "/api/chats/chat_1/messages", 201, MOCK_OUTBOUND)
+    await client.messages.send("chat_1", media_files=[str(audio)], voice_note=True)
+    req = transport.requests[0]
+    await req.aread()
+    body = req.content.decode("utf-8", errors="replace")
+    assert 'name="voice_note"' in body
+    assert "true" in body
+    assert 'filename="note.ogg"' in body
+
+
+def test_message_whatsapp_fields():
+    msg = Message.model_validate({
+        **MOCK_INBOUND,
+        "elements": [{"title": "Red"}],
+        "story_reply": {"story_id": "s1"},
+        "location": {"latitude": 1.5, "longitude": 2.5},
+        "contacts": [{"name": {"formatted_name": "Jane"}}],
+        "template": {
+            "id": "tpl_1", "external_id": "99", "name": "order_update",
+            "language": "en_US", "variables": ["#1"],
+        },
+        "error_details": {"platform_error_code": "131047"},
+    })
+    assert msg.elements[0].title == "Red"
+    assert msg.location.latitude == 1.5
+    assert msg.template.name == "order_update"
+    assert msg.error_details.platform_error_code == "131047"

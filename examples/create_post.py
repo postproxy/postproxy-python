@@ -197,5 +197,21 @@ async def thread_post():
         print(f"Created poll post {poll_post.id}")
 
 
+async def post_with_cover_file():
+    """TikTok video with a custom cover uploaded from disk."""
+    async with PostProxy(API_KEY, profile_group_id=PROFILE_GROUP_ID) as client:
+        # A local cover_file switches the request to multipart; a base64
+        # "data:image/jpeg;base64,..." URL is sent as-is instead.
+        post = await client.posts.create(
+            "Behind the scenes",
+            ["tiktok"],
+            media=["https://example.com/bts.mp4"],
+            platforms=PlatformParams(
+                tiktok=TikTokParams(format="video", cover_file="./cover.jpg"),
+            ),
+        )
+        print(f"Created cover post {post.id}")
+
+
 if __name__ == "__main__":
     asyncio.run(simple_post())

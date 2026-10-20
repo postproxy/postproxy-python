@@ -390,3 +390,146 @@ async def test_delete_on_platform_by_post_profile_id(client, transport: MockTran
     req = transport.requests[0]
     body = json.loads(req.content)
     assert body == {"post_profile_id": "pp-1"}
+
+
+@pytest.mark.asyncio
+async def test_create_accepts_url_objects_in_media(client, transport: MockTransport):
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "hi", ["prof_1"], media=["https://a.test/1.jpg", {"url": "https://a.test/2.jpg"}]
+    )
+    body = json.loads(transport.requests[0].content)
+    assert body["media"] == ["https://a.test/1.jpg", {"url": "https://a.test/2.jpg"}]
+
+
+@pytest.mark.asyncio
+async def test_create_sends_new_platform_params(client, transport: MockTransport):
+    from postproxy import InstagramParams, LinkedInParams, ThreadsParams, TikTokParams, TwitterParams
+
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "hi",
+        ["prof_1"],
+        platforms=PlatformParams(
+            facebook=FacebookParams(link="https://acme.test", countries=["US", "CA"]),
+            instagram=InstagramParams(
+                format="reel", audio_id="123", audio_volume=40, video_volume=80,
+                trial_strategy="MANUAL", made_with_ai=True,
+            ),
+            linkedin=LinkedInParams(
+                format="poll", organization_id="1", poll_question="Tabs or spaces?",
+                poll_options=["Tabs", "Spaces"], poll_duration_days=3,
+            ),
+            threads=ThreadsParams(topic_tag="Coffee", alt_text="A cup"),
+            tiktok=TikTokParams(format="video", upload_as_draft=True, cover_url="https://a.test/c.jpg"),
+            twitter=TwitterParams(alt_text=["one", "two"]),
+        ),
+    )
+    body = json.loads(transport.requests[0].content)
+    assert body["platforms"] == {
+        "facebook": {"link": "https://acme.test", "countries": ["US", "CA"]},
+        "instagram": {
+            "format": "reel", "audio_id": "123", "audio_volume": 40, "video_volume": 80,
+            "trial_strategy": "MANUAL", "made_with_ai": True,
+        },
+        "linkedin": {
+            "format": "poll", "organization_id": "1", "poll_question": "Tabs or spaces?",
+            "poll_options": ["Tabs", "Spaces"], "poll_duration_days": 3,
+        },
+        "threads": {"topic_tag": "Coffee", "alt_text": "A cup"},
+        "tiktok": {"format": "video", "upload_as_draft": True, "cover_url": "https://a.test/c.jpg"},
+        "twitter": {"alt_text": ["one", "two"]},
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_uploads_local_cover_file_as_multipart(client, transport: MockTransport, tmp_path):
+    from postproxy import TikTokParams
+
+    cover = tmp_path / "cover.jpg"
+    cover.write_bytes(b"\xff\xd8\xff")
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "New video",
+        ["tt-profile"],
+        media=["https://a.test/clip.mp4"],
+        platforms=PlatformParams(tiktok=TikTokParams(format="video", cover_file=str(cover))),
+    )
+    req = transport.requests[0]
+    assert "multipart/form-data" in req.headers["content-type"]
+    await req.aread()
+    body = req.content.decode("utf-8", errors="replace")
+    assert 'name="platforms[tiktok][cover_file]"; filename="cover.jpg"' in body
+    assert 'name="platforms[tiktok][format]"' in body
+    assert "https://a.test/clip.mp4" in body
+
+
+@pytest.mark.asyncio
+async def test_update_uploads_local_cover_file(client, transport: MockTransport, tmp_path):
+    from postproxy import YouTubeParams
+
+    cover = tmp_path / "thumb.png"
+    cover.write_bytes(b"\x89PNG")
+    transport.add("PATCH", "/api/posts/post-1", 200, POST_DATA)
+    await client.posts.update(
+        "post-1", platforms=PlatformParams(youtube=YouTubeParams(cover_file=str(cover)))
+    )
+    req = transport.requests[0]
+    assert req.method == "PATCH"
+    await req.aread()
+    body = req.content.decode("utf-8", errors="replace")
+    assert 'name="platforms[youtube][cover_file]"; filename="thumb.png"' in body
+
+
+@pytest.mark.asyncio
+async def test_data_url_cover_file_is_sent_as_json(client, transport: MockTransport):
+    from postproxy import PinterestParams
+
+    data_url = "data:image/png;base64,iVBORw0KGgo="
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "Pin",
+        ["pin-profile"],
+        media=["https://a.test/v.mp4"],
+        platforms=PlatformParams(pinterest=PinterestParams(board_id="b1", cover_file=data_url)),
+    )
+    body = json.loads(transport.requests[0].content)
+    assert body["platforms"] == {"pinterest": {"board_id": "b1", "cover_file": data_url}}
+
+
+@pytest.mark.asyncio
+async def test_multipart_list_params_are_expanded(client, transport: MockTransport, tmp_path):
+    img = tmp_path / "a.jpg"
+    img.write_bytes(b"\xff\xd8\xff")
+    transport.add("POST", "/api/posts", 201, POST_DATA)
+    await client.posts.create(
+        "hi",
+        ["prof_1"],
+        media_files=[str(img)],
+        platforms=PlatformParams(facebook=FacebookParams(countries=["US", "CA"])),
+    )
+    req = transport.requests[0]
+    await req.aread()
+    body = req.content.decode("utf-8", errors="replace")
+    assert body.count('name="platforms[facebook][countries][]"') == 2
+
+
+def test_post_and_platform_result_new_fields():
+    post = Post.model_validate({
+        **POST_DATA,
+        "draft": True,
+        "source": "postproxy",
+        "platforms": [{
+            **POST_DATA["platforms"][0],
+            "profile_id": "prof-1",
+            "profile_name": "Acme",
+            "permalink": "https://facebook.com/1",
+            "attachments": [{"id": "a1", "type": "cover", "status": "processed", "content_type": "image/jpeg", "url": None}],
+        }],
+        "thread": [{"id": "t1", "body": "reply", "platforms": [{"platform": "facebook", "status": "published"}]}],
+    })
+    assert post.draft is True
+    assert post.platforms[0].profile_name == "Acme"
+    assert post.platforms[0].permalink == "https://facebook.com/1"
+    assert post.platforms[0].attachments[0].type == "cover"
+    assert post.thread[0].platforms[0].status == "published"

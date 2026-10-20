@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .._constants import Platform
+from .._constants import ConnectionOnboarding, Platform
 from .._types import (
     BlueskyConnectionResponse,
     DeleteResponse,
@@ -52,15 +52,27 @@ class ProfileGroupsResource:
         id: str,
         platform: Platform,
         redirect_url: str | None = None,
+        *,
+        onboarding: ConnectionOnboarding | None = None,
+        refresh_connection: bool | None = None,
     ) -> OAuthConnectionResponse:
         """Start an OAuth connection (returns a {url, success} response).
 
         BlueSky and Telegram do not use OAuth — use `connect_bluesky` and
         `connect_telegram` instead.
+
+        `onboarding` picks the flow: Instagram `"instagram"` (default) or
+        `"facebook"` (Facebook login — needed for reel music); WhatsApp `"api"`
+        or `"business_app"`. `refresh_connection` re-authorizes an existing
+        profile.
         """
         body: dict[str, Any] = {"platform": platform}
         if redirect_url is not None:
             body["redirect_url"] = redirect_url
+        if onboarding is not None:
+            body["onboarding"] = onboarding
+        if refresh_connection is not None:
+            body["refresh_connection"] = refresh_connection
         data = await self._client._request(
             "POST",
             f"/profile_groups/{id}/initialize_connection",

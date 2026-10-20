@@ -61,3 +61,30 @@ async def test_initialize_connection(client, transport: MockTransport):
     body = json.loads(transport.requests[0].content)
     assert body["platform"] == "facebook"
     assert body["redirect_url"] == "https://example.com/callback"
+
+
+@pytest.mark.asyncio
+async def test_initialize_connection_with_onboarding(client, transport: MockTransport):
+    transport.add("POST", "/api/profile_groups/pg_1/initialize_connection", 200, {"url": "https://x", "success": True})
+    await client.profile_groups.initialize_connection(
+        "pg_1", "instagram", "https://app.test/cb", onboarding="facebook", refresh_connection=True
+    )
+    assert json.loads(transport.requests[0].content) == {
+        "platform": "instagram",
+        "redirect_url": "https://app.test/cb",
+        "onboarding": "facebook",
+        "refresh_connection": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_initialize_whatsapp_connection(client, transport: MockTransport):
+    transport.add("POST", "/api/profile_groups/pg_1/initialize_connection", 200, {"url": "https://x", "success": True})
+    await client.profile_groups.initialize_connection(
+        "pg_1", "whatsapp", "https://app.test/cb", onboarding="business_app"
+    )
+    assert json.loads(transport.requests[0].content) == {
+        "platform": "whatsapp",
+        "redirect_url": "https://app.test/cb",
+        "onboarding": "business_app",
+    }

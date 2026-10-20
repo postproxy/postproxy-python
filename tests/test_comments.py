@@ -340,3 +340,74 @@ async def test_create_comment_sends_idempotency_key(client, transport: MockTrans
         "post-1", "prof-1", "Nice", idempotency_key="key-42"
     )
     assert transport.requests[0].headers["idempotency-key"] == "key-42"
+
+
+@pytest.mark.asyncio
+async def test_edit_comment(client, transport: MockTransport):
+    transport.add("PATCH", "/api/posts/post_1/comments/c_1", 202, {"accepted": True})
+    result = await client.comments.edit("post_1", "c_1", "prof_1", "Fixed typo")
+    assert isinstance(result, AcceptedResponse)
+    assert result.accepted is True
+    req = transport.requests[0]
+    assert req.method == "PATCH"
+    assert req.url.params["profile_id"] == "prof_1"
+    assert json.loads(req.content) == {"body": "Fixed typo"}
+
+
+@pytest.mark.asyncio
+async def test_pin_and_unpin_comment(client, transport: MockTransport):
+    transport.add("POST", "/api/posts/post_1/comments/c_1/pin", 202, {"accepted": True})
+    transport.add("POST", "/api/posts/post_1/comments/c_1/unpin", 202, {"accepted": True})
+    await client.comments.pin("post_1", "c_1", "prof_1")
+    await client.comments.unpin("post_1", "c_1", "prof_1")
+    assert [r.url.path for r in transport.requests] == [
+        "/api/posts/post_1/comments/c_1/pin",
+        "/api/posts/post_1/comments/c_1/unpin",
+    ]
+    assert all(r.method == "POST" for r in transport.requests)
+    assert all(r.url.params["profile_id"] == "prof_1" for r in transport.requests)
+
+
+@pytest.mark.asyncio
+async def test_private_reply_with_elements_and_quick_replies(client, transport: MockTransport):
+    from postproxy import MessageButton, MessageElement, QuickReply
+
+    transport.add("POST", "/api/posts/post_1/comments/c_1/private_reply", 201, {
+        "id": "msg_1",
+        "chat_id": "chat_1",
+        "direction": "outbound",
+        "status": "pending",
+        "created_at": "2026-10-01T00:00:00Z",
+    })
+    await client.comments.private_reply(
+        "post_1", "c_1", "prof_1", "",
+        elements=[
+            MessageElement(
+                title="Sneaker",
+                image_url="https://img.test/s.jpg",
+                buttons=[MessageButton(type="web_url", title="Buy", url="https://shop.test")],
+            )
+        ],
+        quick_replies=[QuickReply(title="More", payload="MORE")],
+    )
+    assert json.loads(transport.requests[0].content) == {
+        "text": "",
+        "elements": [{
+            "title": "Sneaker",
+            "image_url": "https://img.test/s.jpg",
+            "buttons": [{"type": "web_url", "title": "Buy", "url": "https://shop.test"}],
+        }],
+        "quick_replies": [{"title": "More", "payload": "MORE"}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_all_filters_by_placement(client, transport: MockTransport):
+    transport.add("GET", "/api/comments", 200, {"total": 0, "page": 1, "per_page": 20, "data": []})
+    await client.comments.list_all(placement_id="page_1")
+    assert transport.requests[0].url.params["placement_id"] == "page_1"
+
+
+def test_comment_external_edited_at():
+    comment = Comment.model_validate({**MOCK_COMMENT, "external_edited_at": "2026-10-01T00:00:00Z"})
+    assert comment.external_edited_at is not None

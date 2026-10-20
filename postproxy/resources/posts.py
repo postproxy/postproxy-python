@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, List
 from .._types import (
     DeleteOnPlatformResponse,
     DeleteResponse,
+    MediaInput,
     PaginatedResponse,
     PlatformParams,
     Post,
@@ -18,6 +19,49 @@ from .._constants import Platform, PostStatus
 
 if TYPE_CHECKING:
     from .._client import PostProxy
+
+
+_Files = List[tuple[str, tuple[str | None, Any, str]]]
+
+
+def _media_url(item: MediaInput) -> str:
+    return item if isinstance(item, str) else item["url"]
+
+
+def _is_local_cover_file(value: Any) -> bool:
+    """`cover_file` is a local path unless it's a base64 data URL, which the
+    API takes as a plain string."""
+    return isinstance(value, str) and not value.startswith("data:")
+
+
+def _has_local_cover_file(platforms: PlatformParams | None) -> bool:
+    if platforms is None:
+        return False
+    return any(
+        _is_local_cover_file(params.get("cover_file"))
+        for params in platforms.model_dump(exclude_none=True).values()
+        if isinstance(params, dict)
+    )
+
+
+def _file_part(file_path: str | Path) -> tuple[str, Any, str]:
+    path = Path(file_path)
+    content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+    return (path.name, open(path, "rb"), content_type)
+
+
+def _append_platform_params(files: _Files, platforms: PlatformParams) -> None:
+    """Platform params as flat form fields; a local `cover_file` is attached as a file."""
+    for platform, params in platforms.model_dump(exclude_none=True).items():
+        for key, value in params.items():
+            field = f"platforms[{platform}][{key}]"
+            if key == "cover_file" and _is_local_cover_file(value):
+                files.append((field, _file_part(value)))
+            elif isinstance(value, list):
+                for item in value:
+                    files.append((f"{field}[]", (None, str(item), "text/plain")))
+            else:
+                files.append((field, (None, str(value), "text/plain")))
 
 
 class PostsResource:
@@ -71,7 +115,7 @@ class PostsResource:
         body: str,
         profiles: List[str],
         *,
-        media: List[str] | None = None,
+        media: List[MediaInput] | None = None,
         media_files: List[str | Path] | None = None,
         platforms: PlatformParams | None = None,
         thread: List[ThreadChildInput] | None = None,
@@ -81,7 +125,15 @@ class PostsResource:
         queue_priority: str | None = None,
         profile_group_id: str | None = None,
         idempotency_key: str | None = None,
+        skip_duplicate_check: bool | None = None,
     ) -> Post:
+        """Create a post.
+
+        A local ``cover_file`` in ``platforms`` (Instagram, TikTok, YouTube,
+        Pinterest) is uploaded with the post, switching the request to
+        multipart even without ``media_files``. ``skip_duplicate_check=True``
+        publishes even if an identical post was just submitted (skips the 409).
+        """
         scheduled_at_str: str | None = None
         if scheduled_at is not None:
             scheduled_at_str = (
@@ -89,14 +141,15 @@ class PostsResource:
                 if isinstance(scheduled_at, datetime)
                 else scheduled_at
             )
+        headers = {"X-Skip-Duplicate-Check": "true"} if skip_duplicate_check else None
 
         # Check if any thread children have local media files
         has_thread_files = thread is not None and any(
             t.media_files for t in thread
         )
 
-        # When media_files are provided, use multipart form data
-        if media_files is not None or has_thread_files:
+        # When local files are provided, use multipart form data
+        if media_files is not None or has_thread_files or _has_local_cover_file(platforms):
             form_data: dict[str, Any] = {"post[body]": body}
             if scheduled_at_str is not None:
                 form_data["post[scheduled_at]"] = scheduled_at_str
@@ -111,19 +164,13 @@ class PostsResource:
             for p in profiles:
                 files.append(("profiles[]", (None, p, "text/plain")))
             if media is not None:
-                for url in media:
-                    files.append(("media[]", (None, url, "text/plain")))
+                for item in media:
+                    files.append(("media[]", (None, _media_url(item), "text/plain")))
             if platforms is not None:
-                for platform, params in platforms.model_dump(exclude_none=True).items():
-                    for key, value in params.items():
-                        files.append(
-                            (f"platforms[{platform}][{key}]", (None, str(value), "text/plain"))
-                        )
+                _append_platform_params(files, platforms)
             if media_files is not None:
                 for file_path in media_files:
-                    path = Path(file_path)
-                    content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-                    files.append(("media[]", (path.name, open(path, "rb"), content_type)))
+                    files.append(("media[]", _file_part(file_path)))
 
             if thread is not None:
                 for i, t in enumerate(thread):
@@ -133,9 +180,7 @@ class PostsResource:
                             files.append((f"thread[{i}][media][]", (None, url, "text/plain")))
                     if t.media_files is not None:
                         for file_path in t.media_files:
-                            path = Path(file_path)
-                            content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-                            files.append((f"thread[{i}][media][]", (path.name, open(path, "rb"), content_type)))
+                            files.append((f"thread[{i}][media][]", _file_part(file_path)))
 
             data = await self._client._request(
                 "POST",
@@ -144,6 +189,7 @@ class PostsResource:
                 files=files,
                 profile_group_id=profile_group_id,
                 idempotency_key=idempotency_key,
+                headers=headers,
             )
         else:
             # JSON request for URL-based media
@@ -177,6 +223,7 @@ class PostsResource:
                 json=json_body,
                 profile_group_id=profile_group_id,
                 idempotency_key=idempotency_key,
+                headers=headers,
             )
         return Post.model_validate(data)
 
@@ -186,7 +233,7 @@ class PostsResource:
         *,
         body: str | None = None,
         profiles: List[str] | None = None,
-        media: List[str] | None = None,
+        media: List[MediaInput] | None = None,
         media_files: List[str | Path] | None = None,
         platforms: PlatformParams | None = None,
         thread: List[ThreadChildInput] | None = None,
@@ -197,6 +244,14 @@ class PostsResource:
         profile_group_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Post:
+        """Update a post.
+
+        On a published post only ``body``, ``platforms.youtube.title``,
+        ``platforms.pinterest.title`` and ``platforms.pinterest.destination_link``
+        can change; the edit is pushed to the platforms in the background
+        (``platform_post.edited`` / ``platform_post.edit_failed`` webhooks).
+        A local ``cover_file`` is uploaded as on :meth:`create`.
+        """
         scheduled_at_str: str | None = None
         if scheduled_at is not None:
             scheduled_at_str = (
@@ -209,7 +264,7 @@ class PostsResource:
             t.media_files for t in thread
         )
 
-        if media_files is not None or has_thread_files:
+        if media_files is not None or has_thread_files or _has_local_cover_file(platforms):
             form_data: dict[str, Any] = {}
             if body is not None:
                 form_data["post[body]"] = body
@@ -227,19 +282,13 @@ class PostsResource:
                 for p in profiles:
                     files.append(("profiles[]", (None, p, "text/plain")))
             if media is not None:
-                for url in media:
-                    files.append(("media[]", (None, url, "text/plain")))
+                for item in media:
+                    files.append(("media[]", (None, _media_url(item), "text/plain")))
             if platforms is not None:
-                for platform, params in platforms.model_dump(exclude_none=True).items():
-                    for key, value in params.items():
-                        files.append(
-                            (f"platforms[{platform}][{key}]", (None, str(value), "text/plain"))
-                        )
+                _append_platform_params(files, platforms)
             if media_files is not None:
                 for file_path in media_files:
-                    path = Path(file_path)
-                    content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-                    files.append(("media[]", (path.name, open(path, "rb"), content_type)))
+                    files.append(("media[]", _file_part(file_path)))
 
             if thread is not None:
                 for i, t in enumerate(thread):
@@ -249,9 +298,7 @@ class PostsResource:
                             files.append((f"thread[{i}][media][]", (None, url, "text/plain")))
                     if t.media_files is not None:
                         for file_path in t.media_files:
-                            path = Path(file_path)
-                            content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-                            files.append((f"thread[{i}][media][]", (path.name, open(path, "rb"), content_type)))
+                            files.append((f"thread[{i}][media][]", _file_part(file_path)))
 
             data = await self._client._request(
                 "PATCH",

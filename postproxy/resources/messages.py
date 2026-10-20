@@ -10,6 +10,9 @@ from .._types import (
     Message,
     MessageButton,
     MessageCard,
+    MessageElement,
+    MessageLocation,
+    MessageTemplateInput,
     PaginatedResponse,
     QuickReply,
 )
@@ -75,6 +78,15 @@ class MessagesResource:
         quick_replies: Sequence[QuickReply | dict[str, Any]] | None = None,
         buttons: Sequence[MessageButton | dict[str, Any]] | None = None,
         card: MessageCard | dict[str, Any] | None = None,
+        elements: Sequence[MessageElement | dict[str, Any]] | None = None,
+        template: MessageTemplateInput | dict[str, Any] | None = None,
+        interactive: dict[str, Any] | None = None,
+        location: MessageLocation | dict[str, Any] | None = None,
+        contacts: List[dict[str, Any]] | None = None,
+        category: str | None = None,
+        link_preview: bool | None = None,
+        voice_note: bool | None = None,
+        filename: str | None = None,
         profile_group_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Message:
@@ -84,6 +96,15 @@ class MessagesResource:
         they return 422 on Telegram and Bluesky, where `reply_markup` is the
         equivalent. They are sent on the JSON path only, so pass `media` as
         hosted URLs rather than `media_files` when combining with an attachment.
+
+        `elements` is a carousel of up to 10 cards (Facebook and Instagram) and
+        can't be combined with `body`, `buttons` or `card`.
+
+        WhatsApp: send exactly one of `body`, `media`, `template`,
+        `interactive`, `location` or `contacts`; outside the 24-hour window
+        only a `template` gets through. `category="utility"` sends a text
+        message under the utility category, `voice_note` delivers an audio
+        attachment as a voice note, and `filename` names a document attachment.
         """
         # When media_files are provided, use multipart form data (mirrors PostsResource).
         if media_files is not None:
@@ -94,6 +115,10 @@ class MessagesResource:
                 form_data["tag"] = tag
             if reply_to_external_id is not None:
                 form_data["reply_to_external_id"] = reply_to_external_id
+            if voice_note is not None:
+                form_data["voice_note"] = str(voice_note).lower()
+            if filename is not None:
+                form_data["filename"] = filename
 
             files: list[tuple[str, tuple[str | None, Any, str]]] = []
             if media is not None:
@@ -130,6 +155,24 @@ class MessagesResource:
                 json_body["buttons"] = [_dump(b) for b in buttons]
             if card is not None:
                 json_body["card"] = _dump(card)
+            if elements is not None:
+                json_body["elements"] = [_dump(e) for e in elements]
+            if template is not None:
+                json_body["template"] = _dump(template)
+            if interactive is not None:
+                json_body["interactive"] = interactive
+            if location is not None:
+                json_body["location"] = _dump(location)
+            if contacts is not None:
+                json_body["contacts"] = contacts
+            if category is not None:
+                json_body["category"] = category
+            if link_preview is not None:
+                json_body["link_preview"] = link_preview
+            if voice_note is not None:
+                json_body["voice_note"] = voice_note
+            if filename is not None:
+                json_body["filename"] = filename
 
             data = await self._client._request(
                 "POST",
